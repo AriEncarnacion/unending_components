@@ -42,9 +42,8 @@ next-env.d.ts
 .claude/worktrees/
 .claude/settings.local.json
 
-# Graphik is a licensed commercial font. Kept local only,
-# never committed or shipped in the registry. Copy your own licensed files in:
-#   cp your licensed Graphik .otf files public/fonts/graphik/
+# Graphik is a licensed commercial font. Kept local only, never committed or
+# shipped in the registry. Copy your own licensed .otf files into public/fonts/graphik/.
 public/fonts/graphik/
 
 # design-system builds stage baked entries here before shadcn build

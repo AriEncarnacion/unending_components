@@ -81,7 +81,7 @@ export const recipes: Recipe[] = [
   {
     id: "verdant",
     name: "Verdant",
-    description: "Bright green on jet. Light mode deepens the green so buttons hold 3:1 on the page; dark uses the brand hex.",
+    description: "Bright green on jet. Light mode deepens the green so buttons hold 3:1 on the page; dark uses the key colour as is.",
     theory:
       "High-energy complement of a bright green against a blue-grey neutral. The green is light, so it takes dark text; jet keeps the surfaces cool so the green carries all the colour.",
     neutral: "jet",
