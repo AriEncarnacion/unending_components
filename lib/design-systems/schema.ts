@@ -3,6 +3,7 @@
 // scripts (run with node --experimental-strip-types), so relative imports
 // here carry their .ts extension.
 import { STEPS, type KeyColor, type Scale } from "../palette.ts"
+import { fontById } from "./fonts.ts"
 
 export type SystemId = string
 export type EntryName = string
@@ -216,6 +217,45 @@ export function serialize(value: unknown) {
 
 export type Issue = { where: string; message: string }
 
+// Values end up in consumers' global CSS and in the design rules their agents
+// read, and the shadcn CLI writes them as-is. Each kind of value gets a strict
+// grammar, so nothing can close a rule, add one, or smuggle in markup.
+const number = String.raw`\d+(?:\.\d+)?`
+const signed = String.raw`-?\d+(?:\.\d+)?`
+export const valueGrammar = {
+  colour: new RegExp(
+    String.raw`^(?:#(?:[0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})|oklch\(${number}%? ${number} ${number}(?: / ${number}%?)?\))$`,
+    "i"
+  ),
+  length: new RegExp(String.raw`^${number}(?:px|rem|em)$`),
+  duration: new RegExp(String.raw`^${number}m?s$`),
+  easing: new RegExp(
+    String.raw`^(?:linear|ease|ease-in|ease-out|ease-in-out|cubic-bezier\(${number}, ?${signed}, ?${number}, ?${signed}\))$`
+  ),
+}
+
+/** Display names: short, one line, letters, digits, spaces, hyphens and apostrophes. */
+export const namePattern = /^[\p{L}\p{N}][\p{L}\p{N} '-]{0,39}$/u
+
+/** Checks a theme variable's value against its grammar; returns a problem, or null. */
+export function themeValueProblem(name: string, value: string): string | null {
+  switch (name) {
+    case "--radius":
+    case "--spacing":
+      return valueGrammar.length.test(value) ? null : `${name} must be a length like 0.5rem or 8px`
+    case "--default-transition-duration":
+      return valueGrammar.duration.test(value) ? null : `${name} must be a duration like 150ms`
+    case "--default-transition-timing-function":
+      return valueGrammar.easing.test(value) ? null : `${name} must be a CSS easing keyword or cubic-bezier(a, b, c, d)`
+    case "--font-sans":
+    case "--font-heading":
+    case "--font-mono":
+      return fontById(value) ? null : `${name} must be one of the tuner's font options`
+    default:
+      return `${name} isn't a theme variable the tuner knows`
+  }
+}
+
 const rawColour = /^(#|oklch\(|oklab\(|rgb|hsl|lab\(|lch\(|color\()/i
 
 /**
@@ -237,6 +277,8 @@ export function validate(
   if (!idPattern.test(system.id)) sys(`id "${system.id}" must be lowercase words joined by hyphens`)
   if (reservedSystemIds.includes(system.id)) sys(`"${system.id}" is reserved; systems live at /<id>/, so pick another id`)
   if (!system.name.trim()) sys("name is empty")
+  else if (!namePattern.test(system.name))
+    sys("name must be one line of at most 40 letters, digits, spaces, hyphens or apostrophes")
 
   const scaleIds = new Set<string>()
   for (const scale of system.palette.scales) {
@@ -246,7 +288,12 @@ export function validate(
     if (!semanticScaleIds.includes(scale.id) && reservedScaleIds.includes(scale.id.split("-")[0]))
       sys(`scale id "${scale.id}" would collide with a token; rename the scale`)
     if (scale.steps.length !== STEPS) sys(`scale "${scale.id}" has ${scale.steps.length} steps, not ${STEPS}`)
+    if (!namePattern.test(scale.name)) sys(`scale "${scale.id}" name must be one line of at most 40 plain characters`)
+    if (scale.steps.some((step) => ![step.l, step.c, step.h].every(Number.isFinite)))
+      sys(`scale "${scale.id}" has a step that isn't three numbers`)
   }
+  for (const key of system.palette.keys)
+    if (!namePattern.test(key.name)) sys(`key colour "${key.id}" name must be one line of at most 40 plain characters`)
 
   const checkPaletteRef = (report: (message: string) => void, token: string, value: string) => {
     const ref = parsePaletteRef(value)
@@ -261,9 +308,16 @@ export function validate(
       if (!(token in stock[scheme])) sys(`${scheme}.${token} isn't a stock token`)
       if (value.startsWith("palette:")) checkPaletteRef(sys, `${scheme}.${token}`, value)
       else if (value.startsWith("token:")) sys(`${scheme}.${token}: system tokens can't refer to other tokens`)
+      else if (!valueGrammar.colour.test(value))
+        sys(`${scheme}.${token} must be a palette ref, oklch(l c h) or a hex colour`)
     }
-  for (const name of Object.keys(system.tokens.theme))
+  for (const [name, value] of Object.entries(system.tokens.theme)) {
     if (!themeVars.includes(name as ThemeVar)) sys(`theme.${name} isn't a theme variable the tuner knows`)
+    else {
+      const problem = themeValueProblem(name, value ?? "")
+      if (problem) sys(`theme: ${problem}`)
+    }
+  }
 
   for (const [name, tuning] of Object.entries(working.entries)) {
     const entry = at(`entries/${name}.json`)
@@ -283,8 +337,13 @@ export function validate(
           )
         }
       }
-    for (const name of Object.keys(tuning.tokens.theme))
+    for (const [name, value] of Object.entries(tuning.tokens.theme)) {
       if (!scopedThemeVars.includes(name as ScopedThemeVar)) entry(`theme.${name} can't be scoped to an entry`)
+      else {
+        const problem = themeValueProblem(name, value ?? "")
+        if (problem) entry(`theme: ${problem}`)
+      }
+    }
     const declared = knobs?.[name]
     if (knobs && !declared) entry(`no knobs are declared for "${name}"`)
     if (declared)
@@ -293,6 +352,10 @@ export function validate(
         if (!knob) entry(`knob "${key}" isn't declared in registry/unending/${name}/knobs.ts`)
         else if (typeof value !== typeof knob.default) entry(`knob "${key}" should be a ${typeof knob.default}`)
         else if (knob.options && !knob.options.includes(String(value))) entry(`knob "${key}" must be one of ${knob.options.join(", ")}`)
+        else if (typeof value === "number" && !Number.isFinite(value)) entry(`knob "${key}" must be a finite number`)
+        else if (typeof value === "number" && knob.min !== undefined && value < knob.min) entry(`knob "${key}" must be at least ${knob.min}`)
+        else if (typeof value === "number" && knob.max !== undefined && value > knob.max) entry(`knob "${key}" must be at most ${knob.max}`)
+        else if (typeof value === "string" && (value.length > 200 || /[\n\r]/.test(value))) entry(`knob "${key}" must be one line of at most 200 characters`)
       }
   }
   return issues

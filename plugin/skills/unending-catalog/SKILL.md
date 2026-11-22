@@ -17,15 +17,15 @@ Read `references/catalog.md` (in this skill's folder) for the current entries, t
 - **Partial match:** install the closest entry and extend it. Mention the gap to the user, because it may be worth a catalog update (`/unending:create`).
 - **No match:** build with stock shadcn components and follow the `unending-flavor` skill. Tell the user it could become an entry.
 
-The index can lag behind the repo. To see the live list, run `npx shadcn@latest search @unending`.
+The index can lag behind the repo. To see the live list, run `npx shadcn@4.23.0 search @unending`.
 
 ## 2. Install
 
 Install through the `@unending` namespace, which points at the project's design system. If `components.json` has no `@unending` registry, run `/unending:setup` first: it asks which design system the project uses.
 
 ```bash
-npx shadcn@latest view @unending/<name>   # inspect files and dependencies first
-npx shadcn@latest add @unending/<name>
+npx shadcn@4.23.0 view @unending/<name>   # inspect files and dependencies first
+npx shadcn@4.23.0 add @unending/<name>
 ```
 
 - Don't install with the GitHub address (`AriEncarnacion/unending_components/<name>`) in a linked project: that gives the untuned source, with a small `useEntryTuning` helper, instead of the system's baked version.

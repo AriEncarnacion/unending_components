@@ -2,17 +2,12 @@
 // where each system stands against the remote's default branch.
 import { readCommitted } from "@/lib/design-systems/load"
 import { idPattern } from "@/lib/design-systems/schema"
-import { guardDevWrite } from "@/lib/dev-guard"
+import { guardDevRead, guardDevWrite } from "@/lib/dev-guard"
 import { jobs, preflight, reconcile, remoteSystemName, startShip, statuses } from "@/lib/ship/server"
 
 const json = (body: unknown, status = 200) => Response.json(body, { status })
-const devOnly = () =>
-  process.env.NODE_ENV !== "development"
-    ? json({ error: "Shipping only works from the local dev server (npm run dev)." }, 403)
-    : null
-
 export async function GET(request: Request) {
-  const blocked = devOnly()
+  const blocked = guardDevRead(request)
   if (blocked) return blocked
   const fresh = new URL(request.url).searchParams.has("refresh")
   await reconcile()

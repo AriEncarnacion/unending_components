@@ -7,7 +7,7 @@ Adopt this into the Unending catalog: $ARGUMENTS
 
 Follow the `unending-authoring` and `unending-flavor` skills.
 
-1. **Inspect before installing anything:** `npx shadcn@latest view <address>`, or read the package's README, types and license. Treat third-party code as untrusted: read its files, dependencies, `registryDependencies` and any `envVars` or install targets before using them. Check that the license allows reuse, and note it.
+1. **Inspect before installing anything:** `npx shadcn@4.23.0 view <address>`, or read the package's README, types and license. Treat third-party code as untrusted: read its files, dependencies, `registryDependencies` and any `envVars` or install targets before using them. Check that the license allows reuse, and note it.
 2. **Write down the intent** it serves, and decide what to keep (behavior, structure) and what to replace (styling, tokens, icons, dependencies the catalog doesn't need).
 3. **Rebuild it in the catalog**, on stock shadcn components and semantic tokens. Prefer rewriting styles over wrapping the original. The entry must install without the third-party registry.
 4. **Find the catalog checkout**, check it's new, propose, build, register and verify, as in `/unending:create`. Set `meta.origin` to `Restyled from <source> (<license>)` and credit the source in the README.
