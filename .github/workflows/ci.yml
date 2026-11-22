@@ -14,8 +14,8 @@ jobs:
     name: CI
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: npm
@@ -25,3 +25,43 @@ jobs:
         run: npm run registry:check
       - run: npm run build
       - run: npm run typecheck
+
+  denylist:
+    name: Denylist
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      # Fails when the change adds a private name. The names live in the
+      # DENYLIST Actions secret (one extended regex per line), never in the
+      # repo, and matches are never printed, because these logs are public.
+      - name: No private names added
+        env:
+          DENYLIST: ${{ secrets.DENYLIST }}
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [ -z "$DENYLIST" ]; then
+            echo "No denylist available here (fork PRs get no secrets). Skipping."
+            exit 0
+          fi
+          patterns=$(mktemp)
+          printf '%s\n' "$DENYLIST" | sed '/^$/d' > "$patterns"
+          found=0
+          if git grep -q -i -E -f "$patterns" HEAD -- .; then
+            echo "::error::A file in this commit contains a denylisted name."
+            git grep -l -i -E -f "$patterns" HEAD -- . | sed 's/^HEAD://' | sed 's/^/  /'
+            found=1
+          fi
+          if [ -n "$BASE" ] && git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            if git log --format=%B "$BASE..HEAD" | grep -q -i -E -f "$patterns"; then
+              echo "::error::A commit message in this change contains a denylisted name."
+              found=1
+            fi
+            if git log -p --format= "$BASE..HEAD" | grep '^+' | grep -q -i -E -f "$patterns"; then
+              echo "::error::A commit in this change adds a denylisted name, even if a later commit removes it."
+              found=1
+            fi
+          fi
+          rm -f "$patterns"
+          exit $found

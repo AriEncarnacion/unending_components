@@ -15,19 +15,20 @@ on:
 jobs:
   review:
     name: Claude review
-    if: github.actor == 'AriEncarnacion'
+    # 48712583 is AriEncarnacion's numeric id, which survives a rename.
+    if: github.actor_id == '48712583'
     runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: write
       id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
 
       - id: review
-        uses: anthropics/claude-code-action@v1
+        uses: anthropics/claude-code-action@acfe7992852970efb4fee683d63d628e3e52df67 # v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: |
