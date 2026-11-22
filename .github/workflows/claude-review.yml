@@ -1,6 +1,7 @@
-# Claude reviews every pull request and fails this check when it finds
+# Claude reviews the owner's pull requests and fails this check when it finds
 # something that must be fixed before merging. Ship in the catalog merges only
-# when this and CI pass.
+# when this and CI pass. Anyone else's PR skips the job, so outside PRs never
+# spend the owner's Claude usage.
 #
 # Setup, once: run /install-github-app in Claude Code (installs the Claude
 # GitHub App and adds the token secret), or run `claude setup-token` and
@@ -14,6 +15,7 @@ on:
 jobs:
   review:
     name: Claude review
+    if: github.actor == 'AriEncarnacion'
     runs-on: ubuntu-latest
     permissions:
       contents: read
