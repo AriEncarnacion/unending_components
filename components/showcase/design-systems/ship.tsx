@@ -18,7 +18,7 @@ type ShipState = { ready?: Preflight; status: Record<string, ShipStatus>; jobs: 
 const ShipContext = React.createContext<{
   state: ShipState
   refresh: (fresh?: boolean) => Promise<void>
-  ship: (systemId: string, action?: "ship" | "delete", name?: string) => Promise<boolean>
+  ship: (systemId: string, action?: "ship" | "delete") => Promise<boolean>
 } | null>(null)
 
 const busy = (job?: ShipJob) => job?.state === "running" || job?.state === "checking"
@@ -58,11 +58,11 @@ export function ShipProvider({ children }: { children: React.ReactNode }) {
   }, [state.jobs])
 
   const ship = React.useCallback(
-    async (systemId: string, action: "ship" | "delete" = "ship", name?: string) => {
+    async (systemId: string, action: "ship" | "delete" = "ship") => {
       const response = await fetch("/api/ship", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ systemId, action, name }),
+        body: JSON.stringify({ systemId, action }),
       }).catch(() => null)
       const data = response ? await response.json().catch(() => ({})) : { error: "Couldn't reach the dev server." }
       if (!response?.ok) {

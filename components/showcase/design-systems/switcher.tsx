@@ -165,7 +165,7 @@ export function DeleteDialog({
             onClick={async () => {
               const result = await ds.remove(system.id)
               if (!result.ok) return void toast.error(result.error)
-              if (onGitHub) await ship(system.id, "delete", system.name)
+              if (onGitHub) await ship(system.id, "delete")
               toast(onGitHub ? `Deleted ${system.name}; shipping the removal` : `Deleted ${system.name}`)
             }}
           >
