@@ -1,0 +1,15 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "design-rules",
+  "title": "Design rules",
+  "description": "How UI in this app uses the design system: semantic colour, status colour, shape, type and motion. Point your agents at it.",
+  "files": [
+    {
+      "path": "docs/design-system.md",
+      "content": "# Design system: Jade\n\nThis app's UI follows one design system, handed off from the Unending catalog. The app owns these files now: change them here as the product needs.\n\n## Colour\n\n- Use semantic tokens for UI: `background`, `foreground`, `card`, `popover`, `primary`, `secondary`, `muted`, `accent`, `destructive`, `success`, `warning`, `info`, `border`, `input`, `ring`, `chart-1`…`chart-5` and `sidebar-*`, each with `-foreground` where one exists. Opacity modifiers (`bg-primary/10`) are fine.\n- Status colour is semantic: errors and deleting use `destructive`, done or saved uses `success`, needs attention uses `warning`, neutral notices use `info`. Use them for text, icons and tints (`bg-success/10`), not solid fills.\n- Keep to one accent per view. A screen that needs more colour is usually missing hierarchy.\n- Never write raw colours (hex, `rgb()`, `oklch()`) or Tailwind palette classes (`bg-blue-500`) in components.\n- The palette ships as CSS variables, not classes: `--jade-1`…`--jade-12`, `--aqua-1`…`--aqua-12`, `--obsidian-1`…`--obsidian-12`, `--vein-gold-1`…`--vein-gold-12`, `--verdant-1`…`--verdant-12`, `--jet-1`…`--jet-12`, `--neutral-1`…`--neutral-12`, `--danger-1`…`--danger-12`, `--warning-1`…`--warning-12`, `--success-1`…`--success-12`, `--info-1`…`--info-12`. Reach for a raw step only for data and illustration (a chart series, an empty-state drawing), never for UI chrome.\n\n## Shape, type and motion\n\n- Radius comes from the `rounded-*` scale (it derives from `--radius`). Spacing uses the Tailwind scale and `gap`.\n- Fonts: `font-sans` for UI, `font-heading` for headings, `font-mono` for code, times and IDs.\n- Motion is short (120–300ms), eased out, and has a reason. Respect `prefers-reduced-motion`.\n\n## Components\n\n- Build from `components/ui/*` first. Installed Unending entries are already tuned for this system; adjust them here, they're yours.\n- `eslint/unending-colors.mjs`, if installed, flags raw colours and palette classes.\n",
+      "type": "registry:file",
+      "target": "~/docs/design-system.md"
+    }
+  ],
+  "type": "registry:file"
+}
