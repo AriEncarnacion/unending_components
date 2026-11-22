@@ -47,7 +47,7 @@ Text can be **bold**, *italic*, ~~struck~~, \`inline code\` or a [link](https://
   - [ ] not yet
 
 \`\`\`bash
-npx shadcn@latest add AriEncarnacion/unending_components/agent-chat
+npx shadcn@4.23.0 add AriEncarnacion/unending_components/agent-chat
 \`\`\`
 
 \`\`\`json

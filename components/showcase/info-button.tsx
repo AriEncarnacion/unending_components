@@ -172,7 +172,7 @@ export function InfoButton() {
               </Step>
               <Step n={4} title="Install entries">
                 <p className="text-muted-foreground">Ask Claude for the UI you need, or add an entry by name:</p>
-                <Command value="npx shadcn@latest add @unending/review-deck" />
+                <Command value="npx shadcn@4.23.0 add @unending/review-deck" />
               </Step>
               <Step n={5} title="Pull later ships">
                 <p className="text-muted-foreground">

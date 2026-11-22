@@ -49,7 +49,7 @@ export function getEntry(name: string) {
 
 /** In a project linked to a design system (/unending:setup), entries install tuned for it. */
 export function installCommand(name: string) {
-  return `npx shadcn@latest add @unending/${name}`
+  return `npx shadcn@4.23.0 add @unending/${name}`
 }
 
 type DemoModule = { default: React.ComponentType }

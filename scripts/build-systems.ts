@@ -312,6 +312,15 @@ function buildOne(working: Working | null, outDir: string, staging: string) {
     out.push(built)
   }
 
+  // Last line of defence: the shadcn CLI writes CSS values into consumers'
+  // stylesheets as-is, so no value may be able to close or open a rule.
+  for (const item of out)
+    for (const [where, value] of cssLeaves({ cssVars: item.cssVars, css: item.css }))
+      if (/[;{}]/.test(value)) {
+        console.error(`${item.name}: CSS value at ${where} contains ; { or }, which would break out of its rule.`)
+        process.exit(1)
+      }
+
   const reg = {
     $schema: "https://ui.shadcn.com/schema/registry.json",
     name: registry.name,
@@ -329,6 +338,13 @@ function buildOne(working: Working | null, outDir: string, staging: string) {
     console.error(`shadcn build failed for ${path.basename(staging)}:\n${e.stdout ?? ""}${e.stderr ?? ""}`)
     process.exit(1)
   }
+}
+
+/** Every string value in a nested CSS object, with its path. */
+function cssLeaves(value: unknown, where = ""): [string, string][] {
+  if (typeof value === "string") return [[where, value]]
+  if (!value || typeof value !== "object") return []
+  return Object.entries(value).flatMap(([key, child]) => cssLeaves(child, where ? `${where} › ${key}` : key))
 }
 
 function writeFile(base: string, relative: string, content: string) {

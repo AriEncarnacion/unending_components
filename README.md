@@ -19,7 +19,7 @@ npm install
 npm run dev
 ```
 
-Open <http://localhost:3000>. The home page lists every design system: open one, duplicate, rename or delete it, or start a new one on the shadcn base. Everything inside a system lives under `/<system-id>/`: the entries (`/<id>`), each entry page (`/<id>/c/<name>`) with live examples, the install command, intent and UX notes and a tuning inspector, `/<id>/system` and `/<id>/palette`.
+Open <http://localhost:3000>. The dev server listens on 127.0.0.1 only, so nothing else on your network can reach its Save and Ship routes. The home page lists every design system: open one, duplicate, rename or delete it, or start a new one on the shadcn base. Everything inside a system lives under `/<system-id>/`: the entries (`/<id>`), each entry page (`/<id>/c/<name>`) with live examples, the install command, intent and UX notes and a tuning inspector, `/<id>/system` and `/<id>/palette`.
 
 **Design system** (`/system`) shows every token the catalog is built on, live, and says what uses each one: colour (both schemes, with WCAG contrast), type, spacing, radius, elevation, motion curves and durations, control sizes and breakpoints. A tuner adjusts colours in OKLCH, the radius, the spacing unit, fonts and the default motion. Changes apply across the whole showcase in your browser, and "Export CSS" gives the blocks to paste into `app/globals.css`.
 
@@ -43,7 +43,7 @@ The Ship panel lists whatever is still missing. Shipping runs from the dev serve
 This repo is the registry. It's private. Link the project to a design system first with `/unending:setup` (from the plugin below): it points the `@unending` namespace at that system's build and installs its theme, fonts and design rules. Then:
 
 ```bash
-npx shadcn@latest add @unending/timeline-scrubber
+npx shadcn@4.23.0 add @unending/timeline-scrubber
 ```
 
 The entry arrives tuned for the linked system, as plain code the project owns. `/unending:sync` shows what changed in the catalog later and pulls what you approve. Installing with the GitHub address (`AriEncarnacion/unending_components/<name>`) still works through your `gh` login, and gives the untuned source.
