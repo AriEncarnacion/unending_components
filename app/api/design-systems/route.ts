@@ -5,6 +5,7 @@ import { entries } from "@/lib/catalog"
 import { deleteProposal, deleteSystem, readCommitted, writeWorking } from "@/lib/design-systems/load"
 import { idPattern, validate, type Working } from "@/lib/design-systems/schema"
 import { entryKnobs } from "@/lib/entry-knobs"
+import { guardDevWrite } from "@/lib/dev-guard"
 import { baseTokens } from "@/lib/tokens"
 
 type Body =
@@ -15,8 +16,8 @@ type Body =
 const json = (body: unknown, status = 200) => Response.json(body, { status })
 
 export async function POST(request: Request) {
-  if (process.env.NODE_ENV !== "development")
-    return json({ error: "Saving design systems only works on the local dev server (npm run dev)." }, 403)
+  const blocked = guardDevWrite(request)
+  if (blocked) return blocked
 
   let body: Body
   try {

@@ -45,6 +45,7 @@ export type ShipJob = {
   note?: string
   startedAt: number
   finishedAt?: number
+  reconciledAt?: number
 }
 
 type Store = { jobs: Map<string, ShipJob>; fetchedAt: number; preflight?: { at: number; value: Preflight } }
@@ -166,6 +167,19 @@ export async function statuses(ids: string[]): Promise<Record<string, ShipStatus
   return result
 }
 
+/** A system's name as it is on the remote default branch, if it's there. */
+export async function remoteSystemName(id: string) {
+  const check = await preflight()
+  if (!check.base) return undefined
+  const file = await shAny("git", ["show", `origin/${check.base}:design-systems/${id}/system.json`])
+  if (!file.ok) return undefined
+  try {
+    return (JSON.parse(file.out) as { name?: string }).name
+  } catch {
+    return undefined
+  }
+}
+
 export function jobs() {
   return Object.fromEntries(store.jobs)
 }
@@ -271,6 +285,8 @@ async function ship(job: ShipJob) {
     const started = Date.now()
     for (;;) {
       await sleep(10_000)
+      // Someone may merge or close the PR on GitHub while the checks run.
+      if (await settledOnGitHub(job, base)) return
       const result = await shAny("gh", ["pr", "checks", String(pr.number), "--json", "name,bucket,link"])
       const checks = (result.out ? (JSON.parse(result.out) as ShipCheck[]) : []).filter((c) => c.bucket !== "skipping")
       job.checks = checks
@@ -289,6 +305,7 @@ async function ship(job: ShipJob) {
     }
 
     step(job, "Merging")
+    if (await settledOnGitHub(job, base)) return
     await sh("gh", ["pr", "merge", String(pr.number), "--squash", "--delete-branch"])
     const note = await syncLocal(base)
     finish(job, "merged", { step: "Shipped", note, findings: await reviewComment(pr.number) })
@@ -296,6 +313,60 @@ async function ship(job: ShipJob) {
     await cleanup(worktree)
     finish(job, "failed", { error: (error as Error).message.split("\n").slice(0, 6).join("\n") })
   }
+}
+
+/**
+ * Whether your working copies of the shipped paths (untracked files included)
+ * are exactly what's on the remote branch. Uses a throwaway index, so your
+ * real index and files are untouched.
+ */
+async function matchesRemote(base: string) {
+  const index = path.join(shipDir, "compare.index")
+  mkdirSync(shipDir, { recursive: true })
+  const env = { ...process.env, GIT_INDEX_FILE: index }
+  const git = (args: string[]) => run("git", args, { cwd: root, env, maxBuffer: 20 * 1024 * 1024 })
+  try {
+    await git(["read-tree", `origin/${base}`])
+    await git(["add", "--all", "--", ...SHIP_PATHS])
+    await git(["diff", "--cached", "--quiet", `origin/${base}`, "--", ...SHIP_PATHS])
+    return true
+  } catch {
+    return false
+  } finally {
+    rmSync(index, { force: true })
+  }
+}
+
+/** Finishes the job if its PR was merged or closed on GitHub by hand. */
+async function settledOnGitHub(job: ShipJob, base: string) {
+  if (!job.pr || job.state === "merged") return job.state === "merged"
+  const view = await shAny("gh", ["pr", "view", String(job.pr.number), "--json", "state"])
+  if (!view.ok || !view.out) return false
+  const state = (JSON.parse(view.out) as { state: string }).state
+  if (state === "MERGED") {
+    const note = await syncLocal(base)
+    finish(job, "merged", { step: "Shipped", note: `Merged on GitHub by hand. ${note}`, findings: await reviewComment(job.pr.number) })
+    return true
+  }
+  if (state === "CLOSED") {
+    finish(job, "failed", { error: `Pull request #${job.pr.number} was closed without merging. Ship again to reopen the work.` })
+    return true
+  }
+  return false
+}
+
+/**
+ * Catches up jobs whose PR was settled on GitHub while no ship loop was
+ * watching (the dev server restarted, or it was merged by hand).
+ */
+export async function reconcile() {
+  const check = await preflight()
+  if (!check.base) return
+  for (const job of store.jobs.values())
+    if (job.pr && job.state !== "merged" && job.state !== "nothing" && Date.now() - (job.reconciledAt ?? 0) > 15_000) {
+      job.reconciledAt = Date.now()
+      await settledOnGitHub(job, check.base)
+    }
 }
 
 async function cleanup(worktree: string) {
@@ -321,7 +392,7 @@ async function syncLocal(base: string) {
   store.fetchedAt = Date.now()
   const current = (await shAny("git", ["branch", "--show-current"])).out
   if (current !== base) return `Merged into ${base} on GitHub. You're on ${current || "a detached HEAD"}, so pull ${base} when you switch back.`
-  const differs = !(await shAny("git", ["diff", "--quiet", `origin/${base}`, "--", ...SHIP_PATHS])).ok
+  const differs = !(await matchesRemote(base))
   if (differs) return `Merged into ${base} on GitHub. Your local files have changed since, so pull ${base} yourself when ready.`
   // Local copies equal what was merged, but git won't fast-forward over them,
   // so set them aside, fast-forward, then drop them (or put them back if the
