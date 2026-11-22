@@ -1,0 +1,17 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "font-heading",
+  "title": "Manrope (headings)",
+  "description": "The design system's heading font, as --font-heading.",
+  "type": "registry:font",
+  "font": {
+    "family": "'Manrope Variable', sans-serif",
+    "provider": "google",
+    "import": "Manrope",
+    "variable": "--font-heading",
+    "subsets": [
+      "latin"
+    ],
+    "dependency": "@fontsource-variable/manrope"
+  }
+}
