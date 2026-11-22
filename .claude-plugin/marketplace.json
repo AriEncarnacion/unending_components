@@ -1,0 +1,16 @@
+{
+  "name": "unending",
+  "owner": {
+    "name": "Ari Encarnacion"
+  },
+  "metadata": {
+    "description": "Private marketplace for the Unending component catalog."
+  },
+  "plugins": [
+    {
+      "name": "unending",
+      "source": "./plugin",
+      "description": "Find, install and author intent-level components from Ari's Unending catalog, and keep new UI on its shared design system."
+    }
+  ]
+}

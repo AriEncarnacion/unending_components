@@ -1,0 +1,27 @@
+# Checks every pull request (including the ones Ship opens) before it can merge.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    name: CI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - name: Registry, catalog index and design-system builds are in sync
+        run: npm run registry:check
+      - run: npm run build
+      - run: npm run typecheck

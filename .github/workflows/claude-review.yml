@@ -1,0 +1,71 @@
+# Claude reviews every pull request and fails this check when it finds
+# something that must be fixed before merging. Ship in the catalog merges only
+# when this and CI pass.
+#
+# Setup, once: run /install-github-app in Claude Code (installs the Claude
+# GitHub App and adds the token secret), or run `claude setup-token` and
+# `gh secret set CLAUDE_CODE_OAUTH_TOKEN` yourself.
+name: Claude review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+jobs:
+  review:
+    name: Claude review
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: review
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+            BASE: ${{ github.event.pull_request.base.ref }}
+
+            You are reviewing a pull request to the Unending catalog, a private shadcn registry of
+            intent-level components and the design systems built on them. Read CLAUDE.md and
+            README.md first; they state the invariants.
+
+            Most PRs here come from "Ship" in the catalog: they change design-systems/<id>/ and the
+            files `npm run registry:build` regenerates (public/r/, the theme item in registry.json,
+            plugin/skills/unending-catalog/references/catalog.md). For those, check:
+            - Only those paths changed. Anything else in a Ship PR is a blocking problem.
+            - design-systems JSON is well formed: palette refs (palette:<scale>-<1..12>) name scales
+              in the same system, entry tunings use only palette or token refs for colours (no raw
+              colours), and knob keys exist in that entry's knobs.ts.
+            - Baked entries in public/r/<id>/ contain no useEntryTuning call and no "@/lib/tuning" import.
+            - Nothing secret, licensed (for example Graphik font files) or machine-specific is included.
+            For other PRs, review the code for correctness bugs, broken invariants and security issues.
+
+            Use `gh pr diff` and `gh pr view` to read the change. Then post exactly one PR comment with
+            `gh pr comment`, starting with "**Claude review: pass**" or "**Claude review: changes needed**",
+            followed by a short list of findings (file and what to fix). Be brief.
+
+            Set blocking to true only for problems that would break installs, violate an invariant in
+            CLAUDE.md, or leak something; style nits are never blocking.
+          claude_args: |
+            --allowedTools "Read,Grep,Glob,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(git diff:*),Bash(git log:*)"
+            --json-schema '{"type":"object","properties":{"blocking":{"type":"boolean"},"summary":{"type":"string"},"findings":{"type":"array","items":{"type":"string"}}},"required":["blocking","summary","findings"]}'
+
+      - name: Verdict
+        env:
+          RESULT: ${{ steps.review.outputs.structured_output }}
+        run: |
+          node -e '
+            const result = JSON.parse(process.env.RESULT || "{}")
+            console.log(result.summary ?? "(no summary)")
+            for (const finding of result.findings ?? []) console.log("- " + finding)
+            if (typeof result.blocking !== "boolean") { console.error("The review produced no verdict."); process.exit(1) }
+            if (result.blocking) { console.error("Claude found blocking problems."); process.exit(1) }
+          '

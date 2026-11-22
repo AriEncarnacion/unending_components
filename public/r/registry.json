@@ -1,0 +1,423 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry.json",
+  "name": "unending",
+  "homepage": "https://github.com/AriEncarnacion/unending_components",
+  "items": [
+    {
+      "name": "theme",
+      "type": "registry:theme",
+      "title": "Unending theme",
+      "description": "The catalog's design tokens and fonts (DM Sans body, Manrope headings, Geist Mono). Every entry depends on it so installs carry the same flavor.",
+      "registryDependencies": [
+        "@unending/font-sans",
+        "@unending/font-heading",
+        "@unending/font-mono"
+      ],
+      "cssVars": {
+        "theme": {
+          "font-heading": "var(--font-heading)",
+          "font-sans": "var(--font-sans)",
+          "color-success": "var(--success)",
+          "color-warning": "var(--warning)",
+          "color-info": "var(--info)"
+        },
+        "light": {
+          "background": "oklch(1 0 0)",
+          "foreground": "oklch(0.145 0 0)",
+          "card": "oklch(1 0 0)",
+          "card-foreground": "oklch(0.145 0 0)",
+          "popover": "oklch(1 0 0)",
+          "popover-foreground": "oklch(0.145 0 0)",
+          "primary": "oklch(0.205 0 0)",
+          "primary-foreground": "oklch(0.985 0 0)",
+          "secondary": "oklch(0.97 0 0)",
+          "secondary-foreground": "oklch(0.205 0 0)",
+          "muted": "oklch(0.97 0 0)",
+          "muted-foreground": "oklch(0.556 0 0)",
+          "accent": "oklch(0.97 0 0)",
+          "accent-foreground": "oklch(0.205 0 0)",
+          "destructive": "oklch(0.577 0.245 27.325)",
+          "success": "oklch(0.527 0.154 150.069)",
+          "warning": "oklch(0.555 0.163 48.998)",
+          "info": "oklch(0.546 0.245 262.881)",
+          "border": "oklch(0.922 0 0)",
+          "input": "oklch(0.922 0 0)",
+          "ring": "oklch(0.708 0 0)",
+          "chart-1": "oklch(0.87 0 0)",
+          "chart-2": "oklch(0.556 0 0)",
+          "chart-3": "oklch(0.439 0 0)",
+          "chart-4": "oklch(0.371 0 0)",
+          "chart-5": "oklch(0.269 0 0)",
+          "radius": "0.625rem",
+          "sidebar": "oklch(0.985 0 0)",
+          "sidebar-foreground": "oklch(0.145 0 0)",
+          "sidebar-primary": "oklch(0.205 0 0)",
+          "sidebar-primary-foreground": "oklch(0.985 0 0)",
+          "sidebar-accent": "oklch(0.97 0 0)",
+          "sidebar-accent-foreground": "oklch(0.205 0 0)",
+          "sidebar-border": "oklch(0.922 0 0)",
+          "sidebar-ring": "oklch(0.708 0 0)"
+        },
+        "dark": {
+          "background": "oklch(0.145 0 0)",
+          "foreground": "oklch(0.985 0 0)",
+          "card": "oklch(0.205 0 0)",
+          "card-foreground": "oklch(0.985 0 0)",
+          "popover": "oklch(0.205 0 0)",
+          "popover-foreground": "oklch(0.985 0 0)",
+          "primary": "oklch(0.922 0 0)",
+          "primary-foreground": "oklch(0.205 0 0)",
+          "secondary": "oklch(0.269 0 0)",
+          "secondary-foreground": "oklch(0.985 0 0)",
+          "muted": "oklch(0.269 0 0)",
+          "muted-foreground": "oklch(0.708 0 0)",
+          "accent": "oklch(0.269 0 0)",
+          "accent-foreground": "oklch(0.985 0 0)",
+          "destructive": "oklch(0.704 0.191 22.216)",
+          "success": "oklch(0.792 0.209 151.711)",
+          "warning": "oklch(0.828 0.189 84.429)",
+          "info": "oklch(0.707 0.165 254.624)",
+          "border": "oklch(1 0 0 / 10%)",
+          "input": "oklch(1 0 0 / 15%)",
+          "ring": "oklch(0.556 0 0)",
+          "chart-1": "oklch(0.87 0 0)",
+          "chart-2": "oklch(0.556 0 0)",
+          "chart-3": "oklch(0.439 0 0)",
+          "chart-4": "oklch(0.371 0 0)",
+          "chart-5": "oklch(0.269 0 0)",
+          "sidebar": "oklch(0.205 0 0)",
+          "sidebar-foreground": "oklch(0.985 0 0)",
+          "sidebar-primary": "oklch(0.488 0.243 264.376)",
+          "sidebar-primary-foreground": "oklch(0.985 0 0)",
+          "sidebar-accent": "oklch(0.269 0 0)",
+          "sidebar-accent-foreground": "oklch(0.985 0 0)",
+          "sidebar-border": "oklch(1 0 0 / 10%)",
+          "sidebar-ring": "oklch(0.556 0 0)"
+        }
+      }
+    },
+    {
+      "name": "font-sans",
+      "type": "registry:font",
+      "title": "DM Sans (body)",
+      "description": "The design system's body and UI font, as --font-sans.",
+      "font": {
+        "family": "'DM Sans Variable', sans-serif",
+        "provider": "google",
+        "import": "DM_Sans",
+        "variable": "--font-sans",
+        "subsets": [
+          "latin"
+        ],
+        "dependency": "@fontsource-variable/dm-sans"
+      }
+    },
+    {
+      "name": "font-heading",
+      "type": "registry:font",
+      "title": "Manrope (headings)",
+      "description": "The design system's heading font, as --font-heading.",
+      "font": {
+        "family": "'Manrope Variable', sans-serif",
+        "provider": "google",
+        "import": "Manrope",
+        "variable": "--font-heading",
+        "subsets": [
+          "latin"
+        ],
+        "dependency": "@fontsource-variable/manrope"
+      }
+    },
+    {
+      "name": "font-mono",
+      "type": "registry:font",
+      "title": "Geist Mono (code and data)",
+      "description": "The design system's monospace font, as --font-mono.",
+      "font": {
+        "family": "'Geist Mono Variable', monospace",
+        "provider": "google",
+        "import": "Geist_Mono",
+        "variable": "--font-mono",
+        "subsets": [
+          "latin"
+        ],
+        "dependency": "@fontsource-variable/geist-mono"
+      }
+    },
+    {
+      "name": "design-rules",
+      "type": "registry:file",
+      "title": "Design rules",
+      "description": "How UI in this app uses the design system: semantic colour, status colour, shape, type and motion. Point your agents at it.",
+      "files": [
+        {
+          "path": "docs/design-system.md",
+          "type": "registry:file",
+          "target": "~/docs/design-system.md"
+        }
+      ]
+    },
+    {
+      "name": "lint-colors",
+      "type": "registry:file",
+      "title": "Colour lint rule",
+      "description": "An ESLint rule that flags raw colours and palette classes so UI keeps to the semantic tokens.",
+      "files": [
+        {
+          "path": "eslint/unending-colors.mjs",
+          "type": "registry:file",
+          "target": "~/eslint/unending-colors.mjs"
+        }
+      ],
+      "docs": "Add it to eslint.config.mjs: import unendingColors from \"./eslint/unending-colors.mjs\", then include unendingColors in the exported array."
+    },
+    {
+      "name": "timeline-scrubber",
+      "type": "registry:component",
+      "title": "Timeline Scrubber",
+      "description": "See who or what occupies parallel lanes around a moment, and drag, flick or key that moment through time. Built for on-call rotations, bookings and other schedules where each moment has one owner per lane.",
+      "categories": [
+        "time",
+        "scheduling"
+      ],
+      "dependencies": [
+        "cn",
+        "lucide-react"
+      ],
+      "registryDependencies": [
+        "badge",
+        "button",
+        "slider",
+        "tooltip",
+        "@unending/theme"
+      ],
+      "files": [
+        {
+          "path": "registry/unending/timeline-scrubber/timeline-scrubber.tsx",
+          "type": "registry:component"
+        }
+      ],
+      "docs": "Wrap your app in TooltipProvider. Exports TimelineScrubber and withOverrides.",
+      "meta": {
+        "entry": true,
+        "intent": "See who or what occupies parallel lanes around a moment, and move that moment through time.",
+        "status": "draft",
+        "origin": "Harvested from Bearing's support shift scrubber"
+      }
+    },
+    {
+      "name": "agent-chat",
+      "type": "registry:component",
+      "title": "Agent Chat",
+      "description": "Read an AI agent's markdown answer while it streams (tables, highlighted code, task lists) and reply. Status values mirror the AI SDK's useChat.",
+      "categories": [
+        "ai",
+        "conversation"
+      ],
+      "dependencies": [
+        "cn",
+        "lucide-react",
+        "react-markdown@^10.1.0",
+        "remark-gfm@^4.0.1"
+      ],
+      "registryDependencies": [
+        "bubble",
+        "code-block",
+        "input-group",
+        "marker",
+        "message",
+        "message-scroller",
+        "spinner",
+        "@unending/theme"
+      ],
+      "files": [
+        {
+          "path": "registry/unending/agent-chat/agent-chat.tsx",
+          "type": "registry:component"
+        },
+        {
+          "path": "registry/unending/agent-chat/chat-markdown.tsx",
+          "type": "registry:component"
+        }
+      ],
+      "docs": "Exports AgentChat. ChatMarkdown is exported from chat-markdown for rendering agent text elsewhere.",
+      "meta": {
+        "entry": true,
+        "intent": "Read an AI agent's answer as it streams, with full formatting, and reply.",
+        "status": "draft",
+        "origin": "Designed from intent, composed from shadcn AI parts"
+      }
+    },
+    {
+      "name": "review-deck",
+      "type": "registry:component",
+      "title": "Review Deck",
+      "description": "Work through a stack of yes/no decisions one card at a time, with a third \"later\" exit. Drag, button or key; async saves with retry; caller-owned queue and undo.",
+      "categories": [
+        "decisions",
+        "review"
+      ],
+      "dependencies": [
+        "cn",
+        "lucide-react"
+      ],
+      "registryDependencies": [
+        "button",
+        "card",
+        "empty",
+        "kbd",
+        "@unending/theme"
+      ],
+      "files": [
+        {
+          "path": "registry/unending/review-deck/review-deck.tsx",
+          "type": "registry:component"
+        }
+      ],
+      "docs": "Give the deck's parent an explicit height. Exports ReviewDeck, createReviewActions and classifyGesture.",
+      "meta": {
+        "entry": true,
+        "intent": "Work through a stack of yes-or-no decisions quickly, with a way to put one off for later.",
+        "status": "draft",
+        "origin": "Restyled from the @review-deck/react package (MIT)"
+      }
+    },
+    {
+      "name": "page-nav",
+      "type": "registry:component",
+      "title": "Page Navigation",
+      "description": "Move between the pages of an app: grouped pages with badges and sub-pages, current page marked and its group opened, a filter for long lists, collapse to icons, and any router via renderLink.",
+      "categories": [
+        "navigation",
+        "app shell"
+      ],
+      "dependencies": [
+        "lucide-react"
+      ],
+      "registryDependencies": [
+        "collapsible",
+        "sidebar",
+        "@unending/theme"
+      ],
+      "files": [
+        {
+          "path": "registry/unending/page-nav/page-nav.tsx",
+          "type": "registry:component"
+        }
+      ],
+      "docs": "Render PageNav inside SidebarProvider, next to SidebarInset. Pass currentPath and renderLink from your router.",
+      "meta": {
+        "entry": true,
+        "intent": "Move between the pages of an app and always know where you are.",
+        "status": "draft",
+        "origin": "Designed from intent on the stock shadcn sidebar"
+      }
+    },
+    {
+      "name": "inspector-panel",
+      "type": "registry:component",
+      "title": "Inspector Panel",
+      "description": "Inspect and edit whatever is selected, one item or many: collapsible sections with summaries, compact label/control rows, mixed values across a selection, revert, and an empty state.",
+      "categories": [
+        "editing",
+        "selection"
+      ],
+      "dependencies": [
+        "cn",
+        "lucide-react"
+      ],
+      "registryDependencies": [
+        "badge",
+        "button",
+        "collapsible",
+        "empty",
+        "field",
+        "scroll-area",
+        "@unending/theme"
+      ],
+      "files": [
+        {
+          "path": "registry/unending/inspector-panel/inspector-panel.tsx",
+          "type": "registry:component"
+        }
+      ],
+      "docs": "Compose InspectorPanel > InspectorSection > InspectorRow with stock inputs. MIXED is the placeholder for disagreeing values.",
+      "meta": {
+        "entry": true,
+        "intent": "Inspect and edit whatever is selected, without leaving where you selected it.",
+        "status": "draft",
+        "origin": "Designed from intent"
+      }
+    },
+    {
+      "name": "file-toolbar",
+      "type": "registry:component",
+      "title": "File Toolbar",
+      "description": "Work on a file: its name (rename in place), save state, the actions you use most, overflow into More by priority as space shrinks, and one primary action. Roving keyboard focus.",
+      "categories": [
+        "editing",
+        "files"
+      ],
+      "dependencies": [
+        "@base-ui/react",
+        "cn",
+        "lucide-react"
+      ],
+      "registryDependencies": [
+        "button",
+        "dropdown-menu",
+        "input",
+        "separator",
+        "spinner",
+        "tooltip",
+        "@unending/theme"
+      ],
+      "files": [
+        {
+          "path": "registry/unending/file-toolbar/file-toolbar.tsx",
+          "type": "registry:component"
+        }
+      ],
+      "docs": "Wrap your app in TooltipProvider. Shortcuts are display-only; bind them in your app.",
+      "meta": {
+        "entry": true,
+        "intent": "Work on a file: see and change its name and state, and reach its actions at any width.",
+        "status": "draft",
+        "origin": "Designed from intent"
+      }
+    },
+    {
+      "name": "agent-trace",
+      "type": "registry:component",
+      "title": "Agent Activity Trace",
+      "description": "Watch an agent work step by step: live current step and timer, results and durations, expandable reasoning, tool input/output and sub-steps, folding into a one-line summary when done.",
+      "categories": [
+        "ai",
+        "activity"
+      ],
+      "dependencies": [
+        "cn",
+        "lucide-react"
+      ],
+      "registryDependencies": [
+        "code-block",
+        "spinner",
+        "trace",
+        "@unending/theme"
+      ],
+      "files": [
+        {
+          "path": "registry/unending/agent-trace/agent-trace.tsx",
+          "type": "registry:component"
+        }
+      ],
+      "docs": "Exports AgentTrace and the AgentStep type.",
+      "meta": {
+        "entry": true,
+        "intent": "Watch what an agent is doing, step by step, and check any step closely.",
+        "status": "draft",
+        "origin": "Designed from intent on shadcn's Trace"
+      }
+    }
+  ]
+}

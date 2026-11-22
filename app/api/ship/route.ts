@@ -1,0 +1,41 @@
+// Dev-only: ship a design system (PR, CI, Claude review, merge) and report
+// where each system stands against the remote's default branch.
+import { readCommitted } from "@/lib/design-systems/load"
+import { idPattern } from "@/lib/design-systems/schema"
+import { jobs, preflight, startShip, statuses } from "@/lib/ship/server"
+
+const json = (body: unknown, status = 200) => Response.json(body, { status })
+const devOnly = () =>
+  process.env.NODE_ENV !== "development"
+    ? json({ error: "Shipping only works from the local dev server (npm run dev)." }, 403)
+    : null
+
+export async function GET(request: Request) {
+  const blocked = devOnly()
+  if (blocked) return blocked
+  const fresh = new URL(request.url).searchParams.has("refresh")
+  const ids = (await readCommitted()).map((c) => c.system.id)
+  const [ready, status] = await Promise.all([preflight(fresh), statuses(ids)])
+  return json({ ready, status, jobs: jobs() })
+}
+
+export async function POST(request: Request) {
+  const blocked = devOnly()
+  if (blocked) return blocked
+  let body: { systemId?: string; action?: "ship" | "delete"; name?: string }
+  try {
+    body = await request.json()
+  } catch {
+    return json({ error: "The request wasn't valid JSON." }, 400)
+  }
+  const { systemId, action = "ship" } = body
+  if (!systemId || !idPattern.test(systemId)) return json({ error: "Invalid system id." }, 400)
+  const committed = (await readCommitted()).find((c) => c.system.id === systemId)
+  if (action === "ship" && !committed) return json({ error: "Save the system before shipping it." }, 400)
+  try {
+    const job = startShip(systemId, committed?.system.name ?? body.name ?? systemId, action)
+    return json({ job })
+  } catch (error) {
+    return json({ error: (error as Error).message }, 409)
+  }
+}

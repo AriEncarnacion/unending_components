@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "unending-shadcn": {
+      "command": "npx",
+      "args": ["-y", "shadcn@4.23.0", "mcp"]
+    }
+  }
+}

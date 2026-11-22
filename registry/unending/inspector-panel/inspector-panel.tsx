@@ -1,0 +1,187 @@
+"use client"
+
+import * as React from "react"
+import { cn } from "cn"
+import { ChevronRightIcon, MousePointerClickIcon, RotateCcwIcon, XIcon } from "lucide-react"
+
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible"
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty"
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { useEntryTuning } from "@/lib/tuning"
+
+/** Placeholder for a field whose value differs across a multi-selection. */
+export const MIXED = "Mixed"
+
+type InspectorPanelProps = Omit<React.ComponentProps<"aside">, "title"> & {
+  /** What is selected, e.g. "Alex · Override". Omit when nothing is selected. */
+  title?: React.ReactNode
+  /** The kind of thing selected, e.g. "Shift". */
+  kind?: string
+  /** How many things are selected. Above one, the header says so. */
+  count?: number
+  /** Shows Revert when there are unsaved edits. */
+  dirty?: boolean
+  onRevert?: () => void
+  onClose?: () => void
+  /** Shown when nothing is selected. */
+  empty?: React.ReactNode
+}
+
+function InspectorPanel({
+  title,
+  kind,
+  count = title === undefined ? 0 : 1,
+  dirty = false,
+  onRevert,
+  onClose,
+  empty,
+  className,
+  children,
+  ...props
+}: InspectorPanelProps) {
+  const nothing = count === 0
+  return (
+    <aside
+      data-slot="inspector-panel"
+      aria-label={kind ? `${kind} inspector` : "Inspector"}
+      className={cn(
+        "flex min-h-0 w-full flex-col overflow-hidden rounded-xl border bg-card text-card-foreground",
+        className
+      )}
+      {...props}
+    >
+      <header className="flex min-h-12 shrink-0 items-center gap-2 border-b px-3 py-2">
+        <div className="flex min-w-0 flex-1 flex-col">
+          {kind ? (
+            <span className="text-xs text-muted-foreground">
+              {count > 1 ? `${count} ${kind.toLowerCase()}s selected` : kind}
+            </span>
+          ) : null}
+          <h2 className="truncate text-sm font-medium">
+            {nothing ? "Nothing selected" : count > 1 ? `Editing ${count} at once` : title}
+          </h2>
+        </div>
+        {dirty && onRevert ? (
+          <Button type="button" variant="ghost" size="sm" onClick={onRevert}>
+            <RotateCcwIcon data-icon="inline-start" />
+            Revert
+          </Button>
+        ) : null}
+        {onClose ? (
+          <Button type="button" variant="ghost" size="icon-sm" aria-label="Close inspector" onClick={onClose}>
+            <XIcon />
+          </Button>
+        ) : null}
+      </header>
+      {nothing ? (
+        <div className="grid flex-1 place-items-center p-4">
+          {empty ?? (
+            <Empty>
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <MousePointerClickIcon />
+                </EmptyMedia>
+                <EmptyTitle>Select something to inspect</EmptyTitle>
+                <EmptyDescription>Its details and settings appear here.</EmptyDescription>
+              </EmptyHeader>
+            </Empty>
+          )}
+        </div>
+      ) : (
+        <ScrollArea className="min-h-0 flex-1">
+          <div className="flex flex-col">{children}</div>
+        </ScrollArea>
+      )}
+    </aside>
+  )
+}
+
+type InspectorSectionProps = Omit<React.ComponentProps<typeof Collapsible>, "title"> & {
+  title: React.ReactNode
+  /** Short summary shown beside the title while the section is closed. */
+  summary?: React.ReactNode
+}
+
+function InspectorSection({
+  title,
+  summary,
+  defaultOpen,
+  className,
+  children,
+  ...props
+}: InspectorSectionProps) {
+  const tuning = useEntryTuning("inspector-panel", { sectionMs: 200, sectionsOpen: true })
+  return (
+    <Collapsible
+      data-slot="inspector-section"
+      defaultOpen={defaultOpen ?? tuning.sectionsOpen}
+      className={cn("border-b last:border-b-0", className)}
+      {...props}
+    >
+      <CollapsibleTrigger className="group/inspector-trigger flex h-10 w-full items-center gap-2 px-3 text-left text-sm font-medium outline-none hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset">
+        <ChevronRightIcon className="size-4 shrink-0 text-muted-foreground transition-transform group-aria-expanded/inspector-trigger:rotate-90" />
+        <span className="truncate">{title}</span>
+        {summary ? (
+          <span className="ml-auto truncate text-xs font-normal text-muted-foreground group-aria-expanded/inspector-trigger:hidden">
+            {summary}
+          </span>
+        ) : null}
+      </CollapsibleTrigger>
+      <CollapsibleContent
+        className="h-(--collapsible-panel-height) overflow-hidden transition-[height] data-ending-style:h-0 data-starting-style:h-0"
+        style={{ transitionDuration: `${tuning.sectionMs}ms` }}
+      >
+        <div className="flex flex-col gap-3 px-3 pt-1 pb-4">{children}</div>
+      </CollapsibleContent>
+    </Collapsible>
+  )
+}
+
+type InspectorRowProps = Omit<React.ComponentProps<typeof Field>, "children"> & {
+  label: React.ReactNode
+  /** The id of the control, so the label focuses it. */
+  htmlFor?: string
+  hint?: React.ReactNode
+  /** Marks the row as having different values across the selection. */
+  mixed?: boolean
+  children: React.ReactNode
+}
+
+/** A compact label-beside-control row, the inspector's unit of editing. */
+function InspectorRow({ label, htmlFor, hint, mixed, className, children, ...props }: InspectorRowProps) {
+  return (
+    <Field
+      data-slot="inspector-row"
+      data-mixed={mixed || undefined}
+      orientation="horizontal"
+      className={cn("grid grid-cols-[6.5rem_minmax(0,1fr)] items-center gap-x-3 gap-y-1", className)}
+      {...props}
+    >
+      <FieldLabel htmlFor={htmlFor} className="text-xs font-normal text-muted-foreground">
+        {label}
+        {mixed ? (
+          <Badge variant="outline" className="ml-1 h-4 px-1 text-[0.625rem] font-normal">
+            mixed
+          </Badge>
+        ) : null}
+      </FieldLabel>
+      <div className="min-w-0">{children}</div>
+      {hint ? <FieldDescription className="col-start-2 text-xs">{hint}</FieldDescription> : null}
+    </Field>
+  )
+}
+
+export { InspectorPanel, InspectorSection, InspectorRow }

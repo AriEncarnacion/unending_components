@@ -1,0 +1,16 @@
+{
+  "name": "unending",
+  "version": "0.1.0",
+  "description": "Find, install and author intent-level components from Ari's Unending catalog, and keep new UI on its shared design system.",
+  "author": {
+    "name": "Ari Encarnacion"
+  },
+  "repository": "https://github.com/AriEncarnacion/unending_components",
+  "keywords": [
+    "shadcn",
+    "components",
+    "design-system",
+    "registry",
+    "ui"
+  ]
+}
