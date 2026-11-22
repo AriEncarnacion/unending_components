@@ -306,10 +306,11 @@ export function validate(
   for (const scheme of ["light", "dark"] as const)
     for (const [token, value] of Object.entries(system.tokens[scheme])) {
       if (!(token in stock[scheme])) sys(`${scheme}.${token} isn't a stock token`)
-      if (value.startsWith("palette:")) checkPaletteRef(sys, `${scheme}.${token}`, value)
-      else if (value.startsWith("token:")) sys(`${scheme}.${token}: system tokens can't refer to other tokens`)
+      // Fail closed: anything that isn't a well-formed palette ref must be a colour in the strict grammar.
+      if (checkPaletteRef(sys, `${scheme}.${token}`, value)) continue
+      if (value.startsWith("token:")) sys(`${scheme}.${token}: system tokens can't refer to other tokens`)
       else if (!valueGrammar.colour.test(value))
-        sys(`${scheme}.${token} must be a palette ref, oklch(l c h) or a hex colour`)
+        sys(`${scheme}.${token} must be a palette ref (palette:jade-8), oklch(l c h) or a hex colour`)
     }
   for (const [name, value] of Object.entries(system.tokens.theme)) {
     if (!themeVars.includes(name as ThemeVar)) sys(`theme.${name} isn't a theme variable the tuner knows`)
