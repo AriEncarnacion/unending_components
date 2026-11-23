@@ -369,15 +369,59 @@ export function MigrationDialog({ fonts, onCreated }: { fonts: FontOption[]; onC
   )
 }
 
-/** Back to all design systems. With unsaved changes, asks to save or discard them first. */
+// The parts of the Navigation API the leave guard uses; TypeScript's DOM types don't include it yet.
+type TraverseEvent = Event & {
+  navigationType: "push" | "replace" | "reload" | "traverse"
+  cancelable: boolean
+  destination: { url: string; key: string }
+}
+type NavigationApi = EventTarget & { traverseTo: (key: string) => unknown }
+
+/**
+ * Back to all design systems. With unsaved changes, leaving asks to save or
+ * discard them first: from this button, and from the browser's back and
+ * forward buttons where the browser lets a page cancel them (Navigation API).
+ */
 export function BackButton() {
   const ds = useDesignSystems()
   const router = useRouter()
-  const [open, setOpen] = React.useState(false)
+  // Where to go once the changes are saved or discarded.
+  const [leave, setLeave] = React.useState<(() => void) | null>(null)
   const [saving, setSaving] = React.useState(false)
   const active = ds.active
   const dirty = !!ds.systems.find((s) => s.id === ds.activeId)?.dirty
   const neverSaved = active ? !ds.committedFor(active.system.id) : false
+  const guard = React.useRef({ dirty, id: ds.activeId, bypass: false })
+  React.useEffect(() => {
+    guard.current.dirty = dirty
+    guard.current.id = ds.activeId
+  }, [dirty, ds.activeId])
+
+  React.useEffect(() => {
+    const navigation = (window as Window & { navigation?: NavigationApi }).navigation
+    if (!navigation) return
+    const onNavigate = (event: Event) => {
+      const e = event as TraverseEvent
+      const { dirty, id, bypass } = guard.current
+      if (bypass || !dirty || !e.cancelable || e.navigationType !== "traverse") return
+      const path = new URL(e.destination.url).pathname
+      if (path === `/${id}` || path.startsWith(`/${id}/`)) return
+      e.preventDefault()
+      const key = e.destination.key
+      setLeave(() => () => navigation.traverseTo(key))
+    }
+    navigation.addEventListener("navigate", onNavigate)
+    return () => navigation.removeEventListener("navigate", onNavigate)
+  }, [])
+
+  const go = () => {
+    const next = leave
+    setLeave(null)
+    guard.current.bypass = true
+    next?.()
+    // Back on the page (a failed traverse, or this component staying mounted), guard again.
+    window.setTimeout(() => (guard.current.bypass = false), 1000)
+  }
 
   const save = async () => {
     setSaving(true)
@@ -391,8 +435,7 @@ export function BackButton() {
       })
       return
     }
-    setOpen(false)
-    router.push("/")
+    go()
   }
 
   return (
@@ -406,13 +449,13 @@ export function BackButton() {
         onClick={(event) => {
           if (!dirty || !active) return
           event.preventDefault()
-          setOpen(true)
+          setLeave(() => () => router.push("/"))
         }}
       >
         <ChevronLeftIcon />
       </Button>
       {active ? (
-        <AlertDialog open={open} onOpenChange={setOpen}>
+        <AlertDialog open={!!leave} onOpenChange={(open) => !open && setLeave(null)}>
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Save changes to {active.system.name}?</AlertDialogTitle>
@@ -429,8 +472,7 @@ export function BackButton() {
                 disabled={saving}
                 onClick={() => {
                   ds.discard(active.system.id)
-                  setOpen(false)
-                  router.push("/")
+                  go()
                 }}
               >
                 Discard changes
