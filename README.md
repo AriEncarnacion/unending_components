@@ -61,6 +61,7 @@ Private systems install for anyone who can read the repo, through their own `gh 
 | `/unending:capture <screenshot or URL>` | Rebuild a pattern you spotted as a new entry |
 | `/unending:harvest <path>` | Promote a component from one of your apps into the catalog |
 | `/unending:restyle <registry item>` | Adopt an item from another shadcn registry, restyled onto the catalog |
+| `/unending:audit-sizes <entry or URL>` | Check a component or page at every device size, as windows and narrow containers, and suggest fixes |
 
 The plugin's skills also check the catalog for a matching entry before Claude builds UI from scratch.
 
@@ -77,7 +78,11 @@ The plugin's skills also check the catalog for a matching entry before Claude bu
   npm run typecheck && npm run lint && npm run registry:check && npm run build
   ```
 
-  Try each example on `/c/<name>` in light and dark, and at phone width.
+  Try each example on `/c/<name>` in light and dark, then run the size audit, which checks every device width from the entry's minimum to 2560px:
+
+  ```bash
+  npm run audit:sizes -- --entry <name> --system <id> --schemes light,dark
+  ```
 - **Rules:**
   - Use semantic tokens, never raw colours.
   - Don't edit `components/ui/*`.

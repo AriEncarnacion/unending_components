@@ -41,7 +41,7 @@ function DeckWithUndo() {
     value === true ? "Approved" : value === false ? "Declined" : "Later"
 
   return (
-    <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_14rem]">
+    <div className="grid gap-6 @2xl/example:grid-cols-[minmax(0,1fr)_14rem]">
       <ReviewDeck
         className="h-[30rem]"
         items={queue}

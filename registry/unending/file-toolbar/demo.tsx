@@ -14,7 +14,6 @@ import {
 } from "lucide-react"
 
 import { Example } from "@/components/showcase/example"
-import { Slider } from "@/components/ui/slider"
 import {
   FileToolbar,
   type FileAction,
@@ -39,38 +38,21 @@ function actionsFor(log: (what: string) => () => void): FileAction[] {
 }
 
 function Resizable() {
-  const [width, setWidth] = React.useState(100)
   const [name, setName] = React.useState("coverage-q4-rotations.csv")
   // Two minutes before the page loaded, so the relative time reads naturally.
   const [savedAt] = React.useState(() => Date.now() - 2 * 60_000)
   const { last, log } = useLog()
   return (
     <div className="flex flex-col gap-4">
-      <div style={{ width: `${width}%` }} className="min-w-72 transition-[width] duration-150">
-        <FileToolbar
-          name={name}
-          onRename={setName}
-          icon={<FileSpreadsheetIcon />}
-          status={{ state: "saved", savedAt }}
-          actions={actionsFor(log)}
-          primaryAction={{ id: "share", label: "Share", icon: SendIcon, onSelect: log("Share") }}
-        />
-      </div>
-      <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
-        <label htmlFor="toolbar-width" className="shrink-0">
-          Width
-        </label>
-        <Slider
-          id="toolbar-width"
-          aria-label="Toolbar width"
-          className="max-w-64"
-          min={30}
-          max={100}
-          value={width}
-          onValueChange={(value) => setWidth(Array.isArray(value) ? value[0] : value)}
-        />
-        <span className="ml-auto">Last action: {last}</span>
-      </div>
+      <FileToolbar
+        name={name}
+        onRename={setName}
+        icon={<FileSpreadsheetIcon />}
+        status={{ state: "saved", savedAt }}
+        actions={actionsFor(log)}
+        primaryAction={{ id: "share", label: "Share", icon: SendIcon, onSelect: log("Share") }}
+      />
+      <p className="text-sm text-muted-foreground">Last action: {last}</p>
     </div>
   )
 }
@@ -87,7 +69,7 @@ export default function FileToolbarDemo() {
     <>
       <Example
         title="Actions that make room for each other"
-        description="Narrow it with the slider. Lower-priority actions move into More, starting with Duplicate and History, while Download and Undo hold on. Click the file name, or focus it and press F2, to rename. Arrow keys move between controls."
+        description="Drag the frame's right edge to narrow it. Lower-priority actions move into More, starting with Duplicate and History, while Download and Undo hold on. Click the file name, or focus it and press F2, to rename. Arrow keys move between controls."
       >
         <Resizable />
       </Example>

@@ -24,4 +24,4 @@ This repo is Ari's public catalog of intent-level shadcn components, plus its sh
 - `npm run typecheck`, `npm run lint` and `npm run build` check the code.
 - `npm run registry:build` regenerates the theme item and the plugin catalog index, and validates local design systems. `npm run registry:check` checks they're in sync.
 
-Before finishing any entry change, try each example on `/c/<name>` in light and dark, and at phone width.
+Before finishing any entry change, try each example on `/c/<name>` in light and dark, and run the size audit (`npm run audit:sizes -- --entry <name> --system <id> --schemes light,dark`, the `unending-size-audit` skill), which checks every device width from the entry's minimum to 2560px, as windows and narrow containers. It must come back clean. The showcase itself is desktop-only.
