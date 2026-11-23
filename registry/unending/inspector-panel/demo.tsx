@@ -56,7 +56,7 @@ function ShiftInspector({ initial, idPrefix }: { initial: Shift[]; idPrefix: str
 
   return (
     <InspectorPanel
-      className="h-[30rem] max-w-sm"
+      className="h-[36rem] max-w-sm"
       kind="Shift"
       count={draft.length}
       title={draft[0] ? `${draft[0].person} · ${draft[0].role}` : undefined}
@@ -148,7 +148,7 @@ export default function InspectorPanelDemo() {
     <>
       <Example
         title="One selection"
-        description="Edit, and Revert appears. Sections collapse to a one-line summary. Close empties the selection."
+        description="Edit, and Revert appears. Open sections share the height and each scrolls on its own; close one to give the rest room, and it collapses to a one-line summary. Close empties the selection."
         className="bg-muted/30"
       >
         <ShiftInspector initial={shifts.slice(0, 1)} idPrefix="one" />
