@@ -37,6 +37,7 @@ import { InspectorPanel, InspectorRow, InspectorSection } from "@/registry/unend
 import { PaletteSwatches, PresetList } from "@/components/showcase/palette/theme-presets"
 import { recipes } from "@/lib/theme-presets"
 import { useDesignSystems } from "@/components/showcase/design-systems/provider"
+import { flowOptions, leadingOptions } from "@/lib/design-systems/type-scale"
 
 import { formatPx, Readout, toPx, useMounted } from "./section"
 
@@ -144,6 +145,58 @@ function ThemeSlider({
           onValueChange={(next) => setTheme(name, `${Number(single(next).toFixed(4))}${unit}`)}
         />
         <Readout value={display(theme[name])} className="w-14 text-right" />
+        <Button
+          size="icon-xs"
+          variant="ghost"
+          aria-label={`Reset ${label}`}
+          disabled={overrides.theme[name] === undefined}
+          onClick={() => setTheme(name, undefined)}
+        >
+          <RotateCcwIcon />
+        </Button>
+      </div>
+    </InspectorRow>
+  )
+}
+
+/** A theme variable picked from named presets, with its value shown. */
+function PresetSelect({
+  name,
+  label,
+  options,
+  stock,
+}: {
+  name: ThemeVar
+  label: string
+  options: { name: string; value: string }[]
+  /** The label for "not set", when stock has no single value. */
+  stock?: string
+}) {
+  const { theme, setTheme, overrides } = useTokens()
+  const id = `tune-${name.slice(2)}`
+  const current = theme[name] || "stock"
+  const describe = (value: string) => {
+    if (value === "stock") return stock ?? "Stock"
+    const option = options.find((o) => o.value === value)
+    return option ? `${option.name} (${option.value})` : value
+  }
+  return (
+    <InspectorRow label={label} htmlFor={id}>
+      <div className="flex items-center gap-2">
+        <Select value={current} onValueChange={(value) => value && setTheme(name, value === "stock" ? undefined : value)}>
+          <SelectTrigger id={id} className="min-w-0 flex-1">
+            <SelectValue>{describe}</SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {stock ? <SelectItem value="stock">{stock}</SelectItem> : null}
+            {options.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.name}
+                <span className="ml-auto font-mono text-xs text-muted-foreground">{option.value}</span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <Button
           size="icon-xs"
           variant="ghost"
@@ -268,6 +321,26 @@ export function Tuner({
                 </Select>
               </InspectorRow>
             ))}
+            <ThemeSlider
+              name="--text-sm"
+              label="Size"
+              min={0.75}
+              max={1.0625}
+              step={0.03125}
+              unit="rem"
+              display={(v) => formatPx(toPx(v))}
+            />
+            <PresetSelect
+              name="--leading-body"
+              label="Leading"
+              options={leadingOptions}
+              stock="Stock (per size)"
+            />
+            <PresetSelect name="--spacing-flow" label="Flow" options={flowOptions} />
+            <p className="text-xs text-muted-foreground text-pretty">
+              Size is UI text (text-sm); the whole text scale follows it. Leading is the line height of running text, xs
+              to lg. Flow is the space between paragraphs (space-y-flow).
+            </p>
           </InspectorSection>
 
           <InspectorSection
