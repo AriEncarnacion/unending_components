@@ -1,75 +1,65 @@
-// Ships a design system straight to the registry host. No branch, no PR, no
-// Actions run: nothing about a system ever enters the public repo or its logs.
+// Ships a design system to its own GitHub repo. Each design-systems/<id>/ is a
+// clone of that repo: system.json and entries/ are its source, and Ship builds
+// a shadcn GitHub registry next to them (registry.json plus baked files).
 //
-//   1. Build the system's registry from your saved files.
-//   2. Check it with the registry Worker's own upload rules.
-//   3. Optionally, a local Claude review of what changed since the last ship.
-//   4. Write the release manifest (every file's SHA-256), then sign it and the
-//      upload request together: one Touch ID.
-//   5. The Worker verifies, validates, writes the version create-only and
-//      moves the pointer. You get an email.
+//   Ship       build, optionally review with Claude, commit, tag vN, push
+//   Roll back  a new version vN+1 whose files equal an earlier vK
+//   Pull       clone or fast-forward every repo tagged unending-design-system
 //
-// Also: Roll back (move the pointer to an earlier version), Pull (fetch every
-// system's current source, verified), and Set up this Mac (make its key).
+// Everything goes through your own git and `gh` login. The repo's visibility
+// is the system's visibility; change it on GitHub. Apps install
+// owner/repo/<item>#vN, so a version never changes once tagged.
 //
-// Dev server only. Jobs live in memory and .generated/ship/jobs.json; what was
-// shipped from here lives in .generated/ship/shipped.json.
+// Dev server only. Jobs live in memory and .generated/ship/jobs.json.
 import { execFile } from "node:child_process"
 import { createHash } from "node:crypto"
-import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
 import path from "node:path"
 import { promisify } from "node:util"
 
-import { manifestPayload, RELEASE_FORMAT, type Release } from "../../worker/src/shared/protocol.ts"
-import { checkBundle } from "../../worker/src/shared/validate.ts"
-import { admin, pinnedKeys, pinnedKeysFile, registryUrl, registryUrlProblem, releaseMessage, verifyRelease } from "../registry-host/client.ts"
-import { createKey, keyFile, keyInfo, signerAvailable, type KeyInfo } from "../registry-host/signer.ts"
-import { HEADER } from "../../worker/src/shared/protocol.ts"
+import { systemsDir } from "../design-systems/load.ts"
 import { idPattern } from "../design-systems/schema.ts"
 
 const run = promisify(execFile)
 const root = process.cwd()
 const shipDir = path.join(root, ".generated/ship")
 const jobsFile = path.join(shipDir, "jobs.json")
-const shippedFile = path.join(shipDir, "shipped.json")
-const systemsDir = path.join(root, "design-systems")
+
+/** The topic Ship puts on every system repo, so Pull can find them. */
+export const TOPIC = "unending-design-system"
+export const ownerPattern = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/
+export const repoPattern = /^[A-Za-z0-9._-]{1,100}$/
 
 export type ShipJob = {
   systemId: string
   systemName: string
   action: "ship" | "rollback" | "pull"
-  state: "running" | "shipped" | "blocked" | "needs-allow" | "failed" | "nothing"
+  state: "running" | "shipped" | "blocked" | "failed" | "nothing"
   step: string
   log: { at: number; text: string }[]
   version?: number
   findings?: string
-  unknownPackages?: string[]
   error?: string
   note?: string
+  url?: string
   startedAt: number
   finishedAt?: number
 }
 
-/** What this Mac last shipped or pulled, per system. */
-type Shipped = { latest: number; current: number; sourceHash: string; inputsHash?: string; at: number }
-
-type Store = { jobs: Map<string, ShipJob> }
-const globalStore = globalThis as unknown as { __unendingShip?: Store }
-const store: Store = (globalStore.__unendingShip ??= { jobs: loadJobs() })
+type Store = { jobs: Map<string, ShipJob>; preflight?: { at: number; value: Promise<Preflight> }; repos: Map<string, { at: number; info: RepoInfo }> }
+const globalStore = globalThis as unknown as { __unendingShipGitHub?: Store }
+const store: Store = (globalStore.__unendingShipGitHub ??= { jobs: loadJobs(), repos: new Map() })
 
 function loadJobs() {
   try {
-    const states = ["running", "shipped", "blocked", "needs-allow", "failed", "nothing"]
-    // Jobs from before Ship went direct (pull requests) don't fit; drop them.
+    const states = ["running", "shipped", "blocked", "failed", "nothing"]
     const saved = (JSON.parse(readFileSync(jobsFile, "utf8")) as ShipJob[]).filter(
       (job) => ["ship", "rollback", "pull"].includes(job.action) && states.includes(job.state)
     )
     return new Map(
       saved.map((job) => [
         job.systemId,
-        job.state === "running"
-          ? { ...job, state: "failed" as const, error: "The dev server restarted during this. Check the registry, then try again." }
-          : job,
+        job.state === "running" ? { ...job, state: "failed" as const, error: "The dev server restarted during this. Check the repo, then try again." } : job,
       ])
     )
   } catch {
@@ -82,31 +72,55 @@ function persist() {
   writeFileSync(jobsFile, JSON.stringify([...store.jobs.values()], null, 2))
 }
 
-function readShipped(): Record<string, Shipped> {
+// ── git and gh ──────────────────────────────────────────────────────────────
+
+const env = { ...process.env, GIT_TERMINAL_PROMPT: "0" }
+
+/** git, authenticated through `gh` for this command only (your global git config is untouched). */
+async function git(dir: string, args: string[], timeout = 120_000) {
+  const { stdout } = await run("git", ["-c", "credential.helper=", "-c", "credential.helper=!gh auth git-credential", ...args], {
+    cwd: dir,
+    timeout,
+    env,
+    maxBuffer: 20 * 1024 * 1024,
+  })
+  return stdout.trim()
+}
+
+async function gitOk(dir: string, args: string[]) {
   try {
-    return JSON.parse(readFileSync(shippedFile, "utf8"))
-  } catch {
-    return {}
+    return { ok: true, out: await git(dir, args) }
+  } catch (error) {
+    const e = error as { stdout?: string; stderr?: string; message: string }
+    return { ok: false, out: (e.stdout ?? "").trim(), err: (e.stderr || e.message).trim() }
   }
 }
 
-function writeShipped(id: string, value: Shipped) {
-  mkdirSync(shipDir, { recursive: true })
-  writeFileSync(shippedFile, JSON.stringify({ ...readShipped(), [id]: value }, null, 2))
+async function gh(args: string[], cwd = root) {
+  const { stdout } = await run("gh", args, { cwd, timeout: 120_000, env, maxBuffer: 20 * 1024 * 1024 })
+  return stdout.trim()
+}
+
+const dirOf = (id: string) => {
+  if (!idPattern.test(id)) throw new Error(`Invalid system id "${id}".`)
+  return path.join(systemsDir, id)
+}
+
+/** owner/repo of a system's clone, if it has one. */
+async function repoOf(dir: string) {
+  if (!existsSync(path.join(dir, ".git"))) return undefined
+  const url = await gitOk(dir, ["remote", "get-url", "origin"])
+  const match = /github\.com[/:]([A-Za-z0-9-]+\/[A-Za-z0-9._-]+?)(?:\.git)?$/.exec(url.out)
+  return url.ok && match ? match[1] : undefined
+}
+
+/** The highest vN tag in a clone (0 if none). */
+async function latestTag(dir: string) {
+  const tags = (await gitOk(dir, ["tag", "-l", "v*"])).out.split("\n")
+  return Math.max(0, ...tags.map((t) => (/^v([1-9]\d*)$/.exec(t.trim()) ? Number(t.trim().slice(1)) : 0)))
 }
 
 // ── What a system is made of ────────────────────────────────────────────────
-
-/** The system's own files, as they're uploaded: system.json and entries/<name>.json (never proposals). */
-function sourceFiles(id: string): Record<string, string> {
-  const dir = path.join(systemsDir, id)
-  const files: Record<string, string> = { "system.json": readFileSync(path.join(dir, "system.json"), "utf8") }
-  const entries = path.join(dir, "entries")
-  if (existsSync(entries))
-    for (const name of readdirSync(entries).sort())
-      if (name.endsWith(".json") && !name.endsWith(".proposed.json")) files[`entries/${name}`] = readFileSync(path.join(entries, name), "utf8")
-  return files
-}
 
 const hashOf = (files: Record<string, string>) =>
   createHash("sha256")
@@ -126,76 +140,84 @@ function inputsHash() {
   return hashOf(files)
 }
 
+const buildInfoFile = (dir: string) => path.join(dir, ".unending/build.json")
+
 // ── Readiness and status ────────────────────────────────────────────────────
 
 export type Preflight = {
   ok: boolean
   problems: string[]
-  registry: string
-  /** This Mac's key, if it has one, and whether the plugin pins it yet. */
-  key?: KeyInfo & { pinned: boolean }
+  /** Your GitHub login and the orgs you belong to: where a new system's repo can go. */
+  owners: string[]
   /** Whether `claude` is on the PATH, for the optional review. */
   claude: boolean
 }
 
-let preflightCache: { at: number; value: Promise<Preflight> } | undefined
-
 /** What Ship needs, cached for 30 seconds: checking it spawns processes. */
-export function preflight(): Promise<Preflight> {
-  if (!preflightCache || Date.now() - preflightCache.at > 30_000) preflightCache = { at: Date.now(), value: checkPreflight() }
-  return preflightCache.value
+export function preflight(fresh = false): Promise<Preflight> {
+  if (fresh || !store.preflight || Date.now() - store.preflight.at > 30_000) store.preflight = { at: Date.now(), value: checkPreflight() }
+  return store.preflight.value
 }
 
 async function checkPreflight(): Promise<Preflight> {
   const problems: string[] = []
-  const signer = await signerAvailable()
-  if (signer) problems.push(signer)
-  const url = registryUrlProblem()
-  if (url) problems.push(url)
-  let key: Preflight["key"]
-  if (!signer) {
+  const owners: string[] = []
+  const has = (cmd: string) => run("which", [cmd]).then(() => true, () => false)
+  if (!(await has("git"))) problems.push("Shipping needs git.")
+  if (!(await has("gh"))) problems.push("Shipping needs the GitHub CLI. Install it (brew install gh), then run gh auth login.")
+  else {
     try {
-      const info = await keyInfo()
-      if (info) key = { ...info, pinned: pinnedKeys().some((k) => k.keyId === info.keyId && !k.retiredAt) }
-    } catch (error) {
-      problems.push(`Couldn't read this Mac's admin key: ${(error as Error).message}`)
+      owners.push(await gh(["api", "user", "--jq", ".login"]))
+      owners.push(...(await gh(["api", "user/orgs", "--paginate", "--jq", ".[].login"])).split("\n").filter(Boolean))
+    } catch {
+      problems.push("The GitHub CLI isn't signed in. Run gh auth login in a terminal.")
     }
   }
-  const claude = await run("which", ["claude"]).then(
-    () => true,
-    () => false
-  )
-  return { ok: problems.length === 0 && !!key, problems, registry: registryUrl, key, claude }
+  return { ok: problems.length === 0, problems, owners, claude: await has("claude") }
+}
+
+export type RepoInfo = { repo: string; url: string; visibility: "public" | "private" | "internal" | "unknown" }
+
+/** A repo's visibility and URL, cached for five minutes. */
+async function repoInfo(repo: string): Promise<RepoInfo> {
+  const cached = store.repos.get(repo)
+  if (cached && Date.now() - cached.at < 300_000) return cached.info
+  let visibility: RepoInfo["visibility"] = "unknown"
+  try {
+    visibility = (await gh(["repo", "view", repo, "--json", "visibility", "--jq", ".visibility"])).toLowerCase() as RepoInfo["visibility"]
+  } catch {}
+  const info = { repo, url: `https://github.com/${repo}`, visibility }
+  store.repos.set(repo, { at: Date.now(), info })
+  return info
 }
 
 /**
- * shipped:   the registry serves what's saved here
- * older:     the registry serves an earlier version (rolled back)
- * changed:   saved here since the last ship
+ * shipped:   the latest tag has what's saved here
+ * changed:   saved here since the latest tag
  * behind:    unchanged here, but the catalog's entries changed since it shipped
- * unshipped: never shipped (or pulled) from this Mac
+ * unshipped: no repo yet
  */
-export type ShipStatus = "shipped" | "older" | "changed" | "behind" | "unshipped"
+export type ShipStatus = "shipped" | "changed" | "behind" | "unshipped"
+export type SystemStatus = { status: ShipStatus; version?: number; repo?: RepoInfo }
 
-export function statuses(ids: string[]): Record<string, { status: ShipStatus; current?: number; latest?: number }> {
-  const shipped = readShipped()
+export async function statuses(ids: string[]): Promise<Record<string, SystemStatus>> {
   const inputs = inputsHash()
-  const result: Record<string, { status: ShipStatus; current?: number; latest?: number }> = {}
+  const result: Record<string, SystemStatus> = {}
   for (const id of ids) {
-    const record = shipped[id]
-    if (!record || !existsSync(path.join(systemsDir, id, "system.json"))) {
+    const dir = dirOf(id)
+    const repo = await repoOf(dir)
+    if (!repo) {
       result[id] = { status: "unshipped" }
       continue
     }
-    const status: ShipStatus =
-      hashOf(sourceFiles(id)) !== record.sourceHash
-        ? "changed"
-        : record.current !== record.latest
-          ? "older"
-          : record.inputsHash && record.inputsHash !== inputs
-            ? "behind"
-            : "shipped"
-    result[id] = { status, current: record.current, latest: record.latest }
+    const version = await latestTag(dir)
+    const dirty = (await gitOk(dir, ["status", "--porcelain", "--", "system.json", "entries"])).out
+    let built: { inputsHash?: string } = {}
+    try {
+      built = JSON.parse(readFileSync(buildInfoFile(dir), "utf8"))
+    } catch {}
+    const status: ShipStatus = dirty || !version ? "changed" : built.inputsHash !== inputs ? "behind" : "shipped"
+    result[id] = { status, version: version || undefined, repo: await repoInfo(repo) }
   }
   return result
 }
@@ -230,11 +252,23 @@ async function guarded(job: ShipJob, work: () => Promise<void>) {
   try {
     await work()
   } catch (error) {
-    finish(job, "failed", { error: (error as Error).message.split("\n").slice(0, 8).join("\n") })
+    const e = error as { stderr?: string; message: string }
+    finish(job, "failed", { error: (e.stderr || e.message).split("\n").slice(0, 8).join("\n") })
   }
 }
 
-export type ShipOptions = { org?: string; allow?: string[]; review?: boolean }
+/** Fetches the remote and refuses to go on if it has commits this clone doesn't. */
+async function upToDate(dir: string) {
+  await git(dir, ["fetch", "--quiet", "--tags", "origin"])
+  const behind = await gitOk(dir, ["rev-list", "--count", "HEAD..origin/main"])
+  if (behind.ok && Number(behind.out) > 0) throw new Error("The repo has changes this Mac doesn't. Pull first, then try again.")
+}
+
+// ── Ship ────────────────────────────────────────────────────────────────────
+
+/** Where a system's first ship creates its repo. Ignored once it has one. */
+export type NewRepo = { owner: string; name: string; visibility: "private" | "public" }
+export type ShipOptions = { create?: NewRepo; review?: boolean }
 
 export function startShip(systemId: string, systemName: string, options: ShipOptions) {
   const job = begin(systemId, systemName, "ship")
@@ -242,156 +276,119 @@ export function startShip(systemId: string, systemName: string, options: ShipOpt
   return job
 }
 
-async function ship(job: ShipJob, options: ShipOptions) {
-  const id = job.systemId
-  const buildDir = path.join(shipDir, id, "build")
-  const lastDir = path.join(shipDir, id, "last")
-
-  step(job, "Building the registry")
+async function build(dir: string, id: string, repo: string, version: number) {
   try {
-    await run("node", ["--experimental-strip-types", "--no-warnings", "scripts/build-systems.ts", "--system", id, "--out", buildDir], {
-      cwd: root,
-      timeout: 300_000,
-      maxBuffer: 20 * 1024 * 1024,
-    })
+    await run(
+      "node",
+      ["--experimental-strip-types", "--no-warnings", "scripts/build-systems.ts", "--system", id, "--address", repo, "--version", String(version)],
+      { cwd: root, timeout: 300_000, maxBuffer: 20 * 1024 * 1024 }
+    )
   } catch (error) {
     const e = error as { stderr?: string; stdout?: string }
-    return finish(job, "blocked", { step: "The build found problems", findings: (e.stderr || e.stdout || "").trim().slice(0, 6000) })
+    return (e.stderr || e.stdout || "The build failed.").trim().slice(0, 6000)
+  }
+  const commit = await run("git", ["rev-parse", "HEAD"], { cwd: root }).then(
+    (r) => r.stdout.trim(),
+    () => ""
+  )
+  mkdirSync(path.dirname(buildInfoFile(dir)), { recursive: true })
+  writeFileSync(buildInfoFile(dir), JSON.stringify({ inputsHash: inputsHash(), catalogCommit: commit }, null, 2) + "\n")
+  return null
+}
+
+async function ship(job: ShipJob, options: ShipOptions) {
+  const check = await preflight()
+  if (!check.ok) throw new Error(check.problems.join(" "))
+  const id = job.systemId
+  const dir = dirOf(id)
+  if (!existsSync(path.join(dir, "system.json"))) throw new Error("Save the system before shipping it.")
+
+  let repo = await repoOf(dir)
+  const creating = !repo
+  if (creating) {
+    const create = options.create
+    if (!create) throw new Error("Choose where this system's repo goes.")
+    if (!ownerPattern.test(create.owner) || !repoPattern.test(create.name)) throw new Error("That isn't a valid owner and repo name.")
+    if (!check.owners.some((o) => o.toLowerCase() === create.owner.toLowerCase())) throw new Error(`You can't create repos as ${create.owner}.`)
+    repo = `${create.owner}/${create.name}`
+    step(job, `Checking ${repo} is free`)
+    const exists = await gh(["repo", "view", repo, "--json", "name"]).then(
+      () => true,
+      () => false
+    )
+    if (exists) throw new Error(`${repo} already exists. Pull it, or choose another name.`)
+    if (!existsSync(path.join(dir, ".git"))) await git(dir, ["init", "--quiet", "--initial-branch=main"])
+  } else {
+    step(job, "Checking the repo for newer changes")
+    await upToDate(dir)
   }
 
-  step(job, "Checking it against the registry's rules")
-  const source = sourceFiles(id)
-  const files: Record<string, string> = {}
-  for (const name of readdirSync(buildDir).filter((f) => f.endsWith(".json")).sort()) files[`r/${name}`] = readFileSync(path.join(buildDir, name), "utf8")
-  for (const [file, content] of Object.entries(source)) files[`src/${file}`] = content
-  const checked = checkBundle(files, [], id)
-  if (checked.problems.length)
-    return finish(job, "blocked", { step: "The registry would refuse this", findings: checked.problems.join("\n") })
-
-  const record = readShipped()[id]
-  if (record && record.sourceHash === hashOf(source) && record.inputsHash === inputsHash() && existsSync(lastDir) && sameFiles(buildDir, lastDir))
-    return finish(job, "nothing", {
-      note:
-        record.current === record.latest
-          ? `Version ${record.latest} already has exactly this.`
-          : `Version ${record.latest} already has exactly this, but the registry serves version ${record.current}. Use Serve v${record.latest} to undo the rollback.`,
-    })
+  const latest = creating ? 0 : await latestTag(dir)
+  // Rebuild at the latest version first: if nothing changes, there's nothing to ship.
+  if (latest) {
+    step(job, "Building")
+    const problem = await build(dir, id, repo!, latest)
+    if (problem) return finish(job, "blocked", { step: "The build found problems", findings: problem })
+    await git(dir, ["add", "--all"])
+    if ((await gitOk(dir, ["diff", "--cached", "--quiet"])).ok)
+      return finish(job, "nothing", { version: latest, note: `v${latest} already has exactly this.`, url: `https://github.com/${repo}` })
+  }
+  const version = latest + 1
+  step(job, `Building v${version}`)
+  const problem = await build(dir, id, repo!, version)
+  if (problem) return finish(job, "blocked", { step: "The build found problems", findings: problem })
+  await git(dir, ["add", "--all"])
 
   if (options.review) {
     step(job, "Claude is reviewing what changed")
-    const verdict = await review(job, buildDir, lastDir)
-    if (verdict.block) return finish(job, "blocked", { step: "The review found something to fix", findings: verdict.text })
+    const verdict = await review(job, await git(dir, ["diff", "--cached", "--no-color"]))
+    if (verdict.block) {
+      await git(dir, ["reset", "--quiet"])
+      return finish(job, "blocked", { step: "The review found something to fix", findings: verdict.text })
+    }
     job.findings = verdict.text
   }
 
-  // A first ship binds the system to the org's numeric id, which a renamed org keeps
-  // and a newcomer taking its old name doesn't get.
-  let org: { org: string; orgId: number } | undefined
-  if (!record && options.org) {
-    step(job, `Looking up the ${options.org} org on GitHub`)
-    org = await lookUpOrg(options.org)
-  }
-
-  const commit = await run("git", ["rev-parse", "HEAD"], { cwd: root }).then(
+  const catalogCommit = await run("git", ["rev-parse", "--short", "HEAD"], { cwd: root }).then(
     (r) => r.stdout.trim(),
-    () => undefined
+    () => "unknown"
   )
-  let version = (record?.latest ?? 0) + 1
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const items: Record<string, string> = {}
-    const sourceHashes: Record<string, string> = {}
-    for (const [file, content] of Object.entries(files)) {
-      const digest = createHash("sha256").update(content, "utf8").digest("hex")
-      if (file.startsWith("r/")) items[file.slice(2)] = digest
-      else sourceHashes[file.slice(4)] = digest
-    }
-    const payload = manifestPayload({
-      format: RELEASE_FORMAT,
-      system: id,
-      version,
-      createdAt: new Date().toISOString(),
-      ...(commit && /^[0-9a-f]{40}$/.test(commit) ? { commit } : {}),
-      items,
-      source: sourceHashes,
-    })
-    const key = await keyInfo()
-    step(
-      job,
-      attempt
-        ? `Confirm again with Touch ID: the registry was already at version ${version - 1}`
-        : "Confirm with Touch ID to sign and upload"
-    )
-    const result = await admin<{ expectedVersion?: number; unknownPackages?: string[]; problems?: string[]; current?: number }>(
-      "POST",
-      `/admin/systems/${id}/versions`,
-      {
-        reason: `ship ${job.systemName} v${version} to the registry`,
-        body: {
-          version,
-          name: job.systemName,
-          ...(org ?? {}),
-          ...(options.allow?.length ? { allow: options.allow } : {}),
-          release: { payload, keyId: key!.keyId },
-          files,
-          summary: `Shipped from the catalog${commit ? ` at ${commit.slice(0, 7)}` : ""}.`,
-        },
-        also: [{ message: releaseMessage(payload), header: HEADER.releaseSignature }],
-      }
-    )
-    if (result.status === 409 && result.data.expectedVersion && attempt === 0) {
-      version = result.data.expectedVersion
-      continue
-    }
-    if (result.status === 422 && result.data.unknownPackages?.length)
-      return finish(job, "needs-allow", { step: "New npm packages need your OK", unknownPackages: result.data.unknownPackages })
-    if (result.status === 422) return finish(job, "blocked", { step: "The registry refused it", findings: (result.data.problems ?? []).join("\n") })
-    if (!result.ok) throw new Error(result.data.error ?? `The registry answered ${result.status}.`)
+  step(job, `Committing v${version}`)
+  await git(dir, ["commit", "--quiet", "-m", `Ship ${job.systemName} v${version}`, "-m", `Built from the Unending catalog at ${catalogCommit}.`])
+  await git(dir, ["tag", "-a", `v${version}`, "-m", `${job.systemName} v${version}`])
 
-    rmSync(lastDir, { recursive: true, force: true })
-    cpSync(buildDir, lastDir, { recursive: true })
-    writeShipped(id, { latest: version, current: version, sourceHash: hashOf(source), inputsHash: inputsHash(), at: Date.now() })
-    return finish(job, "shipped", {
-      step: "Shipped",
-      version,
-      note: `Version ${version} is live at ${registryUrl}/r/${id}/. Apps pull it with /unending:sync.`,
-    })
+  if (creating) {
+    const create = options.create!
+    step(job, `Creating ${repo} (${create.visibility})`)
+    await gh(
+      ["repo", "create", repo!, `--${create.visibility}`, "--source", dir, "--remote", "origin", "--description", `${job.systemName}: a design system from the Unending catalog, as a shadcn registry.`],
+      dir
+    )
+    await gh(["repo", "edit", repo!, "--add-topic", TOPIC], dir)
   }
-  throw new Error("The registry's version kept moving. Pull, then ship again.")
-}
-
-/** A GitHub org's canonical login and numeric id, from GitHub's public API. */
-async function lookUpOrg(login: string): Promise<{ org: string; orgId: number }> {
-  const response = await fetch(`https://api.github.com/orgs/${encodeURIComponent(login)}`, {
-    headers: { accept: "application/vnd.github+json", "user-agent": "unending-catalog" },
+  step(job, `Pushing v${version}`)
+  const pushed = await gitOk(dir, ["push", "--quiet", "--atomic", "origin", "HEAD:refs/heads/main", `refs/tags/v${version}`])
+  if (!pushed.ok) {
+    // Leave nothing half-made locally: the next ship can start clean.
+    await gitOk(dir, ["tag", "-d", `v${version}`])
+    await gitOk(dir, ["reset", "--quiet", "--soft", "HEAD~1"])
+    throw new Error(/rejected|non-fast-forward|fetch first/.test(pushed.err ?? "") ? "The repo moved on. Pull first, then ship again." : pushed.err)
+  }
+  if (creating) await gitOk(dir, ["branch", "--quiet", "--set-upstream-to=origin/main", "main"])
+  store.repos.delete(repo!)
+  finish(job, "shipped", {
+    step: `Shipped v${version}`,
+    version,
+    url: `https://github.com/${repo}`,
+    note: `Apps install it as ${repo}/<item>#v${version}, and /unending:sync offers it to apps already linked.`,
   })
-  if (response.status === 404) throw new Error(`GitHub has no org called ${login}.`)
-  if (!response.ok) throw new Error(`Couldn't look up the ${login} org on GitHub (${response.status}).`)
-  const body = (await response.json()) as { id?: number; login?: string; type?: string }
-  if (body.type !== "Organization" || !Number.isSafeInteger(body.id) || typeof body.login !== "string")
-    throw new Error(`${login} isn't a GitHub organization.`)
-  return { org: body.login.toLowerCase(), orgId: body.id! }
 }
 
-function sameFiles(a: string, b: string) {
-  const list = (dir: string) => readdirSync(dir).sort()
-  const left = list(a)
-  const right = list(b)
-  return left.length === right.length && left.every((f, i) => f === right[i] && readFileSync(path.join(a, f)).equals(readFileSync(path.join(b, f))))
-}
-
-/** A local Claude review of the diff against the last ship from here. Uses your Claude login; no tools. */
-async function review(job: ShipJob, buildDir: string, lastDir: string): Promise<{ block: boolean; text: string }> {
-  const diff = existsSync(lastDir)
-    ? await run("git", ["diff", "--no-index", "--no-color", "--", lastDir, buildDir], { cwd: root, maxBuffer: 20 * 1024 * 1024 }).then(
-        (r) => r.stdout,
-        (e: { stdout?: string }) => e.stdout ?? ""
-      )
-    : readdirSync(buildDir)
-        .map((f) => `--- new file ${f}\n${readFileSync(path.join(buildDir, f), "utf8")}`)
-        .join("\n")
+/** A local Claude review of what's about to ship. Uses your Claude login; no tools. */
+async function review(job: ShipJob, diff: string): Promise<{ block: boolean; text: string }> {
   const instructions = [
     `You review a design-system registry about to be published as "${job.systemName}". Consumers install these shadcn registry items with the shadcn CLI, so their code and CSS run in other people's apps.`,
-    "The user message is a diff of the built registry files against the last published version (or every file, if this is the first).",
+    "The user message is a diff of the repo against its last published version (or every file, if this is the first).",
     "Look for: code that does anything beyond UI (network calls, storage, eval, reading env or cookies), new or unexpected npm dependencies, CSS that could break out of its rule, accessibility or contrast regressions, and obvious mistakes.",
     "Reply with a first line that is exactly VERDICT: PASS or VERDICT: BLOCK (BLOCK only for something that must be fixed before publishing), then the findings as short bullet points.",
   ].join("\n")
@@ -432,18 +429,37 @@ async function review(job: ShipJob, buildDir: string, lastDir: string): Promise<
 
 // ── Roll back ───────────────────────────────────────────────────────────────
 
-export function startRollback(systemId: string, systemName: string, version: number) {
+/** Ships a new version whose files equal vK's. Tags never move, so apps pinned to any version keep it. */
+export function startRollback(systemId: string, systemName: string, target: number) {
   const job = begin(systemId, systemName, "rollback")
   void guarded(job, async () => {
-    step(job, "Confirm with Touch ID")
-    const result = await admin<{ current?: number; latest?: number }>("POST", `/admin/systems/${systemId}/current`, {
-      reason: `make ${systemName} serve v${version}`,
-      body: { version },
+    const dir = dirOf(systemId)
+    const repo = await repoOf(dir)
+    if (!repo) throw new Error("This system has no repo yet.")
+    step(job, "Checking the repo for newer changes")
+    await upToDate(dir)
+    if ((await gitOk(dir, ["status", "--porcelain"])).out) throw new Error("This system has unshipped changes. Ship or discard them first.")
+    const latest = await latestTag(dir)
+    if (!Number.isInteger(target) || target < 1 || target >= latest) throw new Error(`Pick a version below v${latest}.`)
+    if (!(await gitOk(dir, ["rev-parse", "--verify", "--quiet", `refs/tags/v${target}`])).ok) throw new Error(`There's no v${target}.`)
+    const version = latest + 1
+    step(job, `Making v${version} from v${target}`)
+    await git(dir, ["read-tree", "-u", "--reset", `v${target}`])
+    await git(dir, ["commit", "--quiet", "--allow-empty", "-m", `Roll back ${systemName} to v${target}`, "-m", `v${version} has the same files as v${target}.`])
+    await git(dir, ["tag", "-a", `v${version}`, "-m", `${systemName} v${version} (v${target}'s files)`])
+    step(job, `Pushing v${version}`)
+    const pushed = await gitOk(dir, ["push", "--quiet", "--atomic", "origin", "HEAD:refs/heads/main", `refs/tags/v${version}`])
+    if (!pushed.ok) {
+      await gitOk(dir, ["tag", "-d", `v${version}`])
+      await gitOk(dir, ["reset", "--quiet", "--hard", "HEAD~1"])
+      throw new Error(pushed.err)
+    }
+    finish(job, "shipped", {
+      step: `v${version} has v${target}'s files`,
+      version,
+      url: `https://github.com/${repo}`,
+      note: `Apps on v${target} or earlier don't need anything. Apps on a later version get v${version} with /unending:sync.`,
     })
-    if (!result.ok) throw new Error(result.data.error ?? `The registry answered ${result.status}.`)
-    const record = readShipped()[systemId]
-    if (record) writeShipped(systemId, { ...record, current: version, latest: result.data.latest ?? record.latest })
-    finish(job, "shipped", { step: `Serving version ${version}`, version, note: `${systemName} now serves version ${version}. Nothing was rebuilt.` })
   })
   return job
 }
@@ -452,81 +468,60 @@ export function startRollback(systemId: string, systemName: string, version: num
 
 export const PULL_JOB = "__pull"
 
-type Pulled = {
-  systems: { id: string; name: string; latest: number; current: number; source?: { version: number; release: Release; files: Record<string, string> } }[]
-}
-
 /**
- * Fetches every system's current source from the registry, verifies each
- * release's signature and file hashes, and writes them to design-systems/.
- * A system with saved changes that never shipped is left alone unless `force`.
+ * Finds every repo tagged unending-design-system that you or your orgs own,
+ * clones the ones missing here and fast-forwards the rest. A system with
+ * changes that haven't shipped is left alone.
  */
-export function startPull(force: boolean) {
+export function startPull() {
   const job = begin(PULL_JOB, "Pull", "pull")
   void guarded(job, async () => {
-    step(job, "Confirm with Touch ID")
-    const result = await admin<Pulled>("GET", "/admin/systems?source", { reason: "pull design systems from the registry" })
-    if (!result.ok) throw new Error(result.data.error ?? `The registry answered ${result.status}.`)
-    const local = await keyInfo()
-    const shipped = readShipped()
+    const check = await preflight(true)
+    if (!check.ok) throw new Error(check.problems.join(" "))
     const notes: string[] = []
-    for (const system of result.data.systems) {
-      if (!system.source || !idPattern.test(system.id)) continue
-      step(job, `Verifying ${system.name}`)
-      if (system.source.version !== system.current) throw new Error(`The registry sent ${system.name} v${system.source.version}, but says it serves v${system.current}.`)
-      // Signed by a trusted key, for this system and this version, with these files.
-      await verifyRelease(system.source.release, { source: system.source.files }, local, { system: system.id, version: system.current })
-      const dir = path.join(systemsDir, system.id)
-      const incoming = system.source.files
-      if (existsSync(path.join(dir, "system.json"))) {
-        const mine = sourceFiles(system.id)
-        if (hashOf(mine) === hashOf(incoming)) {
-          writeShipped(system.id, { ...shipped[system.id], latest: system.latest, current: system.current, sourceHash: hashOf(incoming), at: Date.now() })
-          notes.push(`${system.name}: already up to date (v${system.current}).`)
-          continue
-        }
-        const record = shipped[system.id]
-        if (!force && (!record || hashOf(mine) !== record.sourceHash)) {
-          notes.push(`${system.name}: skipped, because it has saved changes that haven't shipped. Ship them, or pull with "Replace local changes".`)
-          continue
-        }
-        const backup = path.join(shipDir, "pull-backup", `${Date.now()}`, system.id)
-        mkdirSync(path.dirname(backup), { recursive: true })
-        cpSync(dir, backup, { recursive: true })
-        rmSync(dir, { recursive: true, force: true })
-      }
-      for (const [file, content] of Object.entries(incoming)) {
-        if (!/^(?:system\.json|entries\/[a-z0-9]+(?:-[a-z0-9]+)*\.json)$/.test(file)) throw new Error(`Refusing to write ${file}.`)
-        mkdirSync(path.dirname(path.join(dir, file)), { recursive: true })
-        writeFileSync(path.join(dir, file), content)
-      }
-      writeShipped(system.id, { latest: system.latest, current: system.current, sourceHash: hashOf(incoming), at: Date.now() })
-      notes.push(`${system.name}: pulled version ${system.current}.`)
+    const repos: string[] = []
+    for (const owner of check.owners) {
+      step(job, `Looking for design systems owned by ${owner}`)
+      const list = await gh(["repo", "list", owner, "--topic", TOPIC, "--limit", "200", "--json", "nameWithOwner", "--jq", ".[].nameWithOwner"]).catch(() => "")
+      repos.push(...list.split("\n").filter(Boolean))
     }
-    finish(job, "shipped", { step: "Pulled", note: notes.join("\n") || "The registry has no design systems yet." })
+    const linked = new Map<string, string>()
+    if (existsSync(systemsDir))
+      for (const id of readdirSync(systemsDir)) {
+        if (!idPattern.test(id)) continue
+        const repo = await repoOf(path.join(systemsDir, id))
+        if (repo) linked.set(repo.toLowerCase(), id)
+      }
+    for (const repo of repos) {
+      const localId = linked.get(repo.toLowerCase())
+      if (localId) {
+        const dir = dirOf(localId)
+        if ((await gitOk(dir, ["status", "--porcelain"])).out) {
+          notes.push(`${repo}: skipped, because ${localId} has changes that haven't shipped.`)
+          continue
+        }
+        step(job, `Updating ${repo}`)
+        const pulled = await gitOk(dir, ["pull", "--quiet", "--ff-only", "--tags", "origin", "main"])
+        notes.push(pulled.ok ? `${repo}: up to date at v${await latestTag(dir)}.` : `${repo}: couldn't fast-forward (${pulled.err?.split("\n")[0]}).`)
+        continue
+      }
+      step(job, `Cloning ${repo}`)
+      let id = ""
+      try {
+        id = String(JSON.parse(await gh(["api", `repos/${repo}/contents/system.json`, "-H", "Accept: application/vnd.github.raw+json"])).id ?? "")
+      } catch {}
+      if (!idPattern.test(id)) {
+        notes.push(`${repo}: skipped, because it has no valid system.json.`)
+        continue
+      }
+      if (existsSync(dirOf(id))) {
+        notes.push(`${repo}: skipped, because design-systems/${id} already exists and isn't linked to it.`)
+        continue
+      }
+      await gh(["repo", "clone", repo, dirOf(id), "--", "--quiet"])
+      notes.push(`${repo}: cloned as ${id} at v${await latestTag(dirOf(id))}.`)
+    }
+    finish(job, "shipped", { step: "Pulled", note: notes.join("\n") || "No repos tagged unending-design-system yet." })
   })
   return job
-}
-
-// ── Set up this Mac ─────────────────────────────────────────────────────────
-
-/**
- * Makes this Mac's admin key and pins it in plugin/keys.json, so consumers
- * trust its releases once that change is merged. Enrolling it with the
- * Worker (ADMIN_KEYS) is a step in the Cloudflare dashboard.
- */
-export async function setUpThisMac() {
-  // Read the pinned keys first: if the file is broken, stop before making a key.
-  let pinned: { keys?: unknown[] }
-  try {
-    pinned = JSON.parse(readFileSync(pinnedKeysFile, "utf8"))
-    if (!pinned || typeof pinned !== "object" || !Array.isArray(pinned.keys)) throw new Error("no keys list")
-  } catch (error) {
-    throw new Error(`plugin/keys.json can't be read (${(error as Error).message}). Fix it, then set up this Mac.`)
-  }
-  const key = await createKey()
-  preflightCache = undefined
-  pinned.keys = [...pinned.keys!, { keyId: key.keyId, publicKey: key.publicKey, addedAt: new Date().toISOString() }]
-  writeFileSync(pinnedKeysFile, JSON.stringify(pinned, null, 2) + "\n")
-  return { ...key, keyFile }
 }

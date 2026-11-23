@@ -142,7 +142,7 @@ export function DeleteDialog({
 }) {
   const ds = useDesignSystems()
   const { state } = useShip()
-  const shipped = state.status[system.id]?.status !== undefined && state.status[system.id]?.status !== "unshipped"
+  const repo = state.status[system.id]?.repo
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
@@ -151,8 +151,8 @@ export function DeleteDialog({
           <AlertDialogDescription>
             {!system.saved
               ? "It was never saved, so its draft is all there is. This can't be undone."
-              : shipped
-                ? `This deletes design-systems/${system.id}/ on this Mac only. The registry keeps every version it shipped, so apps keep installing it and Pull can bring it back.`
+              : repo
+                ? `This deletes design-systems/${system.id}/ on this Mac only. Its repo, ${repo.repo}, keeps every version it shipped, so apps keep installing it and Pull brings it back. Delete or archive the repo on GitHub if you want it gone.`
                 : `This deletes design-systems/${system.id}/ and any unsaved draft. It never shipped, so nothing can bring it back.`}
           </AlertDialogDescription>
         </AlertDialogHeader>
@@ -193,7 +193,7 @@ function SaveDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open
     setSaving(false)
     if (result.ok) {
       onOpenChange(false)
-      toast(`Saved ${active.system.name}`, { description: `Wrote design-systems/${active.system.id}/. Ship puts it on the registry.` })
+      toast(`Saved ${active.system.name}`, { description: `Wrote design-systems/${active.system.id}/. Ship puts it in its GitHub repo.` })
     } else setProblem(result)
   }
 
@@ -202,7 +202,7 @@ function SaveDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Save {active.system.name}</DialogTitle>
-          <DialogDescription>Writes design-systems/{active.system.id}/ on this Mac. Ship puts it on the registry.</DialogDescription>
+          <DialogDescription>Writes design-systems/{active.system.id}/ on this Mac. Ship puts it in its GitHub repo.</DialogDescription>
         </DialogHeader>
         <div className="flex max-h-[50vh] flex-col gap-3 overflow-y-auto text-sm">
           {groups.length ? (

@@ -26,9 +26,6 @@ const eslintConfig = defineConfig([
     "hooks/use-mobile.ts",
     "hooks/use-highlighted-code.ts",
     "lib/highlighter.tsx",
-    "public/r/**",
-    // The registry Worker has its own TypeScript setup and tests (worker/).
-    "worker/**",
   ]),
 ]);
 

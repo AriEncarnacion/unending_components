@@ -13,7 +13,7 @@
     "registry:theme": "node scripts/sync-theme.mjs",
     "registry:index": "node scripts/build-catalog-index.mjs",
     "registry:build": "node scripts/sync-theme.mjs && node scripts/build-catalog-index.mjs && npm run registry:systems",
-    "registry:check": "node scripts/sync-theme.mjs --check && node scripts/build-catalog-index.mjs --check && npm run registry:systems -- --check && shadcn registry validate",
+    "registry:check": "node scripts/sync-theme.mjs --check && node scripts/build-catalog-index.mjs --check && npm run registry:systems && shadcn registry validate",
     "registry:systems": "node --experimental-strip-types --no-warnings scripts/build-systems.ts"
   },
   "dependencies": {

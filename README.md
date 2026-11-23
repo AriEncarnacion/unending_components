@@ -23,32 +23,29 @@ Open <http://localhost:3000>. The dev server listens on 127.0.0.1 only, so nothi
 
 **Design system** (`/system`) shows every token the catalog is built on, live, and says what uses each one: colour (both schemes, with WCAG contrast), type, spacing, radius, elevation, motion curves and durations, control sizes and breakpoints. A tuner adjusts colours in OKLCH, the radius, the spacing unit, fonts and the default motion. Changes apply across the whole showcase in your browser, and "Export CSS" gives the blocks to paste into `app/globals.css`.
 
-**Design systems.** The catalog curates several design systems; the home page lists them and the URL picks the one every page shows. Stock shadcn is the read-only base. Each system stores only its differences in `design-systems/<id>/`: its palette, token and theme changes in `system.json`, and per-entry tuning in `entries/<name>.json` (scoped tokens, motion and prop defaults from the entry's knobs). Edits are drafts in your browser, one per system; **Save** writes the files on the dev server, and **Ship** puts them on the registry (below). `design-systems/` is git-ignored: systems never enter this public repo. Each entry page has a tuning inspector for the active system. Ship bakes a system into its own registry, so an app linked to it with `/unending:setup` installs plain components with that system's values written in. After that the app owns them; `/unending:sync` pulls later changes on request.
+**Design systems.** The catalog curates several design systems; the home page lists them and the URL picks the one every page shows. Stock shadcn is the read-only base. Each system stores only its differences in `design-systems/<id>/`: its palette, token and theme changes in `system.json`, and per-entry tuning in `entries/<name>.json` (scoped tokens, motion and prop defaults from the entry's knobs). Edits are drafts in your browser, one per system; **Save** writes the files on the dev server, and **Ship** puts them in the system's own GitHub repo (below). `design-systems/` is git-ignored: systems never enter this repo. Each entry page has a tuning inspector for the active system. Ship bakes a system into a shadcn registry in its repo, so an app linked to it with `/unending:setup` installs plain components with that system's values written in. After that the app owns them; `/unending:sync` pulls later changes on request.
 
 **Palette** (`/palette`) is for grading the raw colour scales: the jade key colours and 12-step scales, the verdant green and jet black scales, and your live background, primary and foreground. Edit any step in OKLCH, drag the lightness, chroma and hue curves, build a scale from a key colour, and check contrast (WCAG and APCA), colour-vision and usage. Hide scales you aren't working on, undo with ⌘Z, push a step into a theme token, and export as Tailwind `@theme`, CSS variables or JSON. It also has neutral and status scales (danger, warning, success, info) tuned to sit with the jade palette. **Theme presets** (on `/palette` and in the `/system` tuner) map the scales onto every shadcn colour token in both schemes and walk each scale until text, controls, focus rings and charts meet their contrast targets; recipes live in `lib/theme-presets.ts`. The tuner's Colour section also offers every visible palette step as a one-click value. The palette is kept in your browser; seeds live in `lib/palette.ts`.
 
 ## Ship a design system
 
-**Ship** (next to Save in the sidebar) builds the system's registry from your saved files, checks it with the registry's own upload rules, signs it and uploads it straight to the registry at `https://registry.unending.studio`. There's no branch, PR or Actions run, so nothing about a system ever appears in this public repo or its logs.
+Each design system is its own GitHub repo, and `design-systems/<id>/` is a clone of it. **Ship** (next to Save in the sidebar) builds the system into that repo as a [shadcn GitHub registry](https://ui.shadcn.com/docs/registry/github) (`registry.json` plus the baked files), commits, tags the next version (`v1`, `v2`, …) and pushes. It uses your own `git` and `gh` login; there's no server or account.
 
-- **Signed on your Mac.** Each ship is signed by a key in this Mac's Secure Enclave, and macOS asks for Touch ID every time. The registry only accepts keys you enrolled. Set this up once per Mac with **Ship → Set up this Mac**; see `worker/README.md`.
-- **Versions never change.** The registry numbers versions in order and writes each one once. Ship can also serve an earlier version (roll back) without rebuilding anything.
-- **Private by default.** A system's first ship names the GitHub org whose active members may read it. Public systems come with the visibility controls, later.
-- **New npm packages need your OK.** The registry keeps an allowlist. When a ship would install a package it hasn't seen, Ship lists them and asks before allowing them.
-- **Review first** (optional) runs a local Claude review of what changed since the last ship, and stops the ship if it finds something to fix.
-- **Pull** (on the home page) fetches every system's current version from the registry, checks its signature, and saves it here. Use it on a new Mac.
-
-Every ship emails you. The registry Worker, its deploy steps and recovery when a Mac goes away are in [`worker/`](worker/README.md).
+- **First ship** asks where the repo goes (your account or one of your orgs), its name and whether it's private or public, then creates it with the `unending-design-system` topic.
+- **Visibility is the repo's.** Public systems install for anyone; private ones for whoever can read the repo, through their own `gh auth login`. Change it in the repo's settings on GitHub.
+- **Versions never change.** Every ship is a new tag, and same-repo dependencies are pinned to it (`owner/repo/theme#v3`), so a version only installs its own files. **Roll back** ships a new version with an earlier version's files.
+- **Review first** (optional) runs a local Claude review of what's about to ship, and stops if it finds something to fix.
+- **Pull** (on the home page) clones every design-system repo you or your orgs own that isn't here yet, and fast-forwards the rest. Use it on a new Mac.
 
 ## Install an entry in another project
 
-Use the plugin (below). In a Claude session opened on the project:
+Use the plugin (below). In a Claude session opened on the project, with `gh auth login` done:
 
-1. `/unending:login <org>` once, for an org's private system. It gets a read-only token, saved in the project's git-ignored `.env.local`.
-2. `/unending:setup` links the project to one design system and installs its theme, fonts and design rules.
-3. Ask for the UI you need, or for an entry by name.
+1. `/unending:setup` links the project to one design system's repo, installs its theme, fonts and design rules at the newest version, and records the link in `unending.json`.
+2. Ask for the UI you need, or install an entry by name: `npx shadcn@4.23.0 add owner/repo/<name>#v3`.
+3. `/unending:sync` shows what changed in newer versions and pulls what you approve.
 
-The plugin checks each release's signature against the keys pinned in `plugin/keys.json`, and every file's hash, before anything installs. Stock is checked against this repo's `main` instead. Plain `npx shadcn add @unending/<name>` also works once a project is linked, but skips those checks, so prefer the plugin. Installing with the GitHub address (`AriEncarnacion/unending_components/<name>`) gives the untuned source.
+Stock is this repo: `npx shadcn@4.23.0 add AriEncarnacion/unending_components/<name>` gives the untuned source with its small tuning helper.
 
 ## Claude Code and Cowork plugin
 
@@ -56,8 +53,8 @@ The plugin checks each release's signature against the keys pinned in `plugin/ke
 
 - **`unending-catalog` skill:** checks the catalog for a matching intent before Claude builds UI, then installs the entry.
 - **`unending-flavor` skill and `flavor-reviewer` agent:** keep new UI on the design system and review it against the rules.
-- **`unending-authoring` skill and commands:** `/unending:create`, `/unending:capture`, `/unending:harvest` and `/unending:restyle` grow the catalog. `/unending:login` gets a read-only token for an org's private systems, `/unending:setup` links a project to a design system, and `/unending:sync` pulls later changes into it.
-- **shadcn MCP server:** lets any agent search, view and add entries once a project has the `@unending` namespace.
+- **`unending-authoring` skill and commands:** `/unending:create`, `/unending:capture`, `/unending:harvest` and `/unending:restyle` grow the catalog. `/unending:setup` links a project to a design system, and `/unending:sync` pulls later changes into it.
+- **shadcn MCP server:** lets any agent search, view and add entries by their `owner/repo/<name>#<version>` address.
 
 To install it in Claude Code:
 
@@ -76,14 +73,13 @@ To use it everywhere, including Cowork and chat, add the repo as a marketplace a
 ```
 app/globals.css ──registry:theme──▶ registry.json "theme" item (Stock)
 registry/unending/<name>/          component + demo.tsx + README.md + knobs.ts
-design-systems/<id>/               system.json + entries/<name>.json (saved from the tuner; git-ignored)
 registry.json ──registry:index────▶ plugin/skills/unending-catalog/references/catalog.md
-registry.json ──registry:systems──▶ public/r/*.json (Stock) ──publish-stock.yml──▶ registry /r/stock/
-design-systems/<id> ──Ship (signed)──▶ registry /r/<id>/ (each system, entries baked)
+design-systems/<id>/               a clone of the system's repo: system.json + entries/<name>.json (git-ignored here)
+design-systems/<id>/ ──Ship──▶     registry.json + baked files in that repo, committed, tagged vN, pushed
 ```
 
 ```bash
-npm run registry:build   # regenerate the theme item, plugin catalog index and public/r (Stock); check local systems
+npm run registry:build   # regenerate the theme item and plugin catalog index; check local systems
 npm run registry:check   # fail if any of those are stale or the registry is invalid
 ```
 

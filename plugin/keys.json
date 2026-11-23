@@ -1,6 +1,0 @@
-{
-  "$comment": "Public keys whose releases the plugin trusts. Ship's Set up this Mac adds one; merge it in a PR. When a Mac goes away, set retiredAt and list the SHA-256 of each release payload it signed in releases, so those keep verifying.",
-  "repository": "AriEncarnacion/unending_components",
-  "repositoryId": "1467395964",
-  "keys": []
-}

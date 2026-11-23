@@ -36,7 +36,6 @@ const commandSections: { title: string; context: string; commands: CommandInfo[]
     title: "In an app",
     context: "Run in a Claude session opened on a project that uses a design system.",
     commands: [
-      { name: "/unending:login <org>", body: "Get a read-only token for an org's private design systems." },
       { name: "/unending:setup", body: "Link the app to one design system and install its theme, fonts and design rules." },
       { name: "/unending:sync", body: "Show what changed in the linked system and pull only what you approve." },
     ],
@@ -151,34 +150,32 @@ export function InfoButton() {
 
           <TabsContent value="install" className="-mx-4 overflow-y-auto px-4 pt-2">
             <ol className="flex flex-col gap-4">
-              <Step n={1} title="Install the plugin (once per machine)">
+              <Step n={1} title="Sign in to GitHub">
+                <p className="text-muted-foreground">
+                  Each design system is its own GitHub repo. Public ones install for anyone; private ones install for whoever can read
+                  the repo, through their own GitHub login.
+                </p>
+                <Command value="gh auth login" />
+              </Step>
+              <Step n={2} title="Install the plugin (once per machine)">
                 <Command value={`claude plugin marketplace add ${REPO}`} />
                 <Command value="claude plugin install unending@unending" />
               </Step>
-              <Step n={2} title="Log in, for private systems">
-                <p className="text-muted-foreground">
-                  Public systems and Stock need nothing. For an org&apos;s private system, run{" "}
-                  <code className="font-mono text-xs">/unending:login &lt;org&gt;</code> in a Claude session opened on the app. You
-                  approve on github.com, and a read-only token lands in the app&apos;s git-ignored{" "}
-                  <code className="font-mono text-xs">.env.local</code>.
-                </p>
-              </Step>
               <Step n={3} title="Link the app to a shipped system">
                 <p className="text-muted-foreground">
-                  Run <code className="font-mono text-xs">/unending:setup</code> and pick the system. Only shipped systems are
-                  offered. Everything installs from the registry only after the plugin checks who released it.
+                  In a Claude session opened on the app, run <code className="font-mono text-xs">/unending:setup</code> and pick
+                  the system&apos;s repo. It installs the theme and design rules at the newest version and records the link in{" "}
+                  <code className="font-mono text-xs">unending.json</code>.
                 </p>
               </Step>
               <Step n={4} title="Install entries">
-                <p className="text-muted-foreground">
-                  Ask Claude for the UI you need, or for an entry by name, such as &ldquo;add the review deck&rdquo;. The plugin
-                  verifies it before installing.
-                </p>
+                <p className="text-muted-foreground">Ask Claude for the UI you need, or add an entry by name, pinned to the version:</p>
+                <Command value="npx shadcn@4.23.0 add owner/repo/review-deck#v3" />
               </Step>
               <Step n={5} title="Pull later ships">
                 <p className="text-muted-foreground">
-                  After you Ship changes to that system, run <code className="font-mono text-xs">/unending:sync</code> in
-                  the app. Plugin updates arrive with:
+                  After you Ship a new version of that system, run <code className="font-mono text-xs">/unending:sync</code>{" "}
+                  in the app. Plugin updates arrive with:
                 </p>
                 <Command value="claude plugin marketplace update unending" />
               </Step>

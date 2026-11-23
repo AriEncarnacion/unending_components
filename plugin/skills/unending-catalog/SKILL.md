@@ -5,9 +5,9 @@ description: Finds and installs intent-level components from Ari's Unending cata
 
 # Using the Unending catalog
 
-Ari keeps a private catalog of **intent-level** components: pieces named for what a person is trying to do ("scrub through parallel schedules", "work on a file") rather than what they are ("slider", "toolbar"). Each entry is built from stock shadcn parts, and installs with the shadcn CLI from the Unending registry (`https://registry.unending.studio`), after this plugin verifies who released it.
+Ari keeps a private catalog of **intent-level** components: pieces named for what a person is trying to do ("scrub through parallel schedules", "work on a file") rather than what they are ("slider", "toolbar"). Each entry is built from stock shadcn parts, and installs with the shadcn CLI from a design system's GitHub repo.
 
-The catalog curates several **design systems**. A project is linked to exactly one (`/unending:setup` points the `@unending` namespace at it), and every entry it installs arrives already tuned for that system: plain code, no tuning layer. After install the project owns the code. Later catalog changes come only through `/unending:sync`.
+The catalog curates several **design systems**. Each one is its own GitHub repo, built as a shadcn registry and tagged by version. A project is linked to exactly one (`/unending:setup` records it in `unending.json` as `{ "system": "owner/repo", "version": "vN" }`), and every entry it installs arrives already tuned for that system: plain code, no tuning layer. After install the project owns the code. Later catalog changes come only through `/unending:sync`.
 
 ## 1. Match the intent before writing UI
 
@@ -17,26 +17,25 @@ Read `references/catalog.md` (in this skill's folder) for the current entries, t
 - **Partial match:** install the closest entry and extend it. Mention the gap to the user, because it may be worth a catalog update (`/unending:create`).
 - **No match:** build with stock shadcn components and follow the `unending-flavor` skill. Tell the user it could become an entry.
 
-The index can lag behind the repo. To see the live list, run `npx shadcn@4.23.0 search @unending`.
+The index can lag behind. To see what the linked system offers, run `npx shadcn@4.23.0 list <owner/repo>`.
 
 ## 2. Install
 
-Install from the project's design system, verified. If `components.json` has no `@unending` registry, run `/unending:setup` first: it asks which design system the project uses. Private systems need `/unending:login` once per project.
+Install from the project's design system, at the version in `unending.json`. If there's no `unending.json`, run `/unending:setup` first: it asks which design system the project uses. Private systems install through the user's own `gh auth login`.
 
 ```bash
-npx shadcn@4.23.0 view @unending/<name>                              # inspect files and dependencies first
-node ${CLAUDE_PLUGIN_ROOT}/scripts/unending.mjs fetch <system> <name>   # verify the release, download, print local paths
-npx shadcn@4.23.0 add <the printed paths>
+npx shadcn@4.23.0 view <owner/repo>/<name>#<version>   # inspect files and dependencies first
+npx shadcn@4.23.0 add <owner/repo>/<name>#<version>
 ```
 
-- The `fetch` step checks the release's signature against the keys pinned in this plugin, and every file's hash. If it refuses, stop and tell the user. Don't fall back to `npx shadcn add @unending/<name>`, which installs without that check.
-- It also prints the npm packages the entry brings. Mention any the project doesn't have yet.
-- Every entry depends on `theme`. In a linked project it's normally installed already; if `fetch` includes it, preview with `--dry-run` / `--diff` before it rewrites the project's CSS variables.
+- Always pin the version from `unending.json`. Without `#<version>`, shadcn installs whatever is on the repo's main branch.
+- Mention any npm packages the entry brings that the project doesn't have yet.
+- Every entry depends on `theme`. In a linked project it's normally installed already; if not, preview with `--dry-run` / `--diff` before it rewrites the project's CSS variables.
 - Follow `docs/design-system.md` in the project when building around the entry. It's the linked system's rules.
 - Entries install into `components/` (for example `components/timeline-scrubber.tsx`), and their shadcn dependencies install into `components/ui/`.
 - Read each entry's `docs` note after installing. Some need a provider, such as `TooltipProvider`, or a parent with an explicit height.
 
-The shadcn MCP server's search and view tools work with the `@unending` namespace too.
+The shadcn MCP server's search, view and add tools take the same `owner/repo/<name>#<version>` addresses.
 
 ## 3. Use it well
 
