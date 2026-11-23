@@ -326,7 +326,7 @@ async function ship(job: ShipJob, options: ShipOptions) {
   const latest = creating ? 0 : await latestTag(dir)
   // Rebuild at the latest version first: if nothing changes, there's nothing to ship.
   if (latest) {
-    step(job, "Building")
+    step(job, `Checking for changes since v${latest}`)
     const problem = await build(dir, id, repo!, latest)
     if (problem) return finish(job, "blocked", { step: "The build found problems", findings: problem })
     await git(dir, ["add", "--all"])
