@@ -172,7 +172,7 @@ export default function AgentTraceDemo() {
       <Example title="Finished, collapsed" description="A done run folds into one line: how long it worked and how many steps it took.">
         <AgentTrace steps={finished} />
       </Example>
-      <Example title="Stopped by an error" description="The failed step opens itself; steps that never ran stay dimmed.">
+      <Example title="Stopped by an error" description="The failed step opens itself; steps that never ran stay muted, marked by their icon.">
         <AgentTrace steps={failed} defaultOpen />
       </Example>
     </>
