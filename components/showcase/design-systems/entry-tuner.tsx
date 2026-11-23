@@ -244,7 +244,7 @@ function RefPicker({
             .filter((s) => !s.hidden)
             .map((scale) => (
               <div key={scale.id} className="grid grid-cols-[4rem_minmax(0,1fr)] items-center gap-1.5">
-                <span className="truncate text-[0.65rem] text-muted-foreground">{scale.name}</span>
+                <span className="truncate text-[0.6875rem] text-muted-foreground">{scale.name}</span>
                 <div className="grid grid-cols-12 gap-0.5">
                   {scale.steps.map((step, i) => {
                     const ref = paletteRef(scale.id, i + 1)
@@ -373,7 +373,7 @@ function ProposalBanner({ entry }: { entry: string }) {
     else toast(accept ? "Proposal added to your draft" : "Proposal rejected; the entry stays as it was")
   }
   return (
-    <div className="m-3 flex flex-col gap-2 rounded-lg bg-muted p-3 text-sm">
+    <div className="m-4 flex flex-col gap-2 rounded-lg bg-muted p-4 text-sm">
       <span className="flex items-center gap-1.5 font-medium">
         <SparklesIcon className="size-4 text-muted-foreground" />
         Claude proposed a tuning
@@ -406,7 +406,7 @@ export function EntryTuner({ name, className }: { name: string; className?: stri
   if (!ds.active)
     return (
       <InspectorPanel className={className} kind="Tuning" title="Stock shadcn">
-        <p className="p-3 text-sm text-muted-foreground text-pretty">
+        <p className="p-4 text-sm text-muted-foreground text-pretty">
           Stock is read-only. Pick or create a design system in the sidebar to tune this entry for it.
         </p>
       </InspectorPanel>
@@ -421,7 +421,7 @@ export function EntryTuner({ name, className }: { name: string; className?: stri
       onRevert={() => change(() => emptyEntryTuning(name))}
     >
       <ProposalBanner entry={name} />
-      <div className="flex items-center gap-1.5 px-3 pt-3 text-xs text-muted-foreground">
+      <div className="flex shrink-0 items-center gap-1.5 px-4 pt-4 pb-2 text-xs text-muted-foreground">
         <Badge variant={count ? "default" : "outline"}>{count ? `Tuned for ${system}` : "Untuned"}</Badge>
         <span className="text-pretty">{count ? "Only these differences are saved." : "Ships as it is on this system's tokens."}</span>
       </div>

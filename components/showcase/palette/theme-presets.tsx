@@ -191,7 +191,7 @@ export function PaletteSwatches({ token, scheme }: { token: string; scheme: "lig
       <div className="flex flex-col gap-1">
         {scales.map((scale) => (
           <div key={scale.id} className="grid grid-cols-[3.75rem_minmax(0,1fr)] items-center gap-1.5">
-            <span className="truncate text-[0.65rem] text-muted-foreground" title={scale.name}>
+            <span className="truncate text-[0.6875rem] text-muted-foreground" title={scale.name}>
               {scale.name}
             </span>
             <div className="grid grid-cols-12 gap-0.5">{scale.steps.map((c, i) => swatch(c, `${scale.name} ${i + 1}`))}</div>
@@ -199,7 +199,7 @@ export function PaletteSwatches({ token, scheme }: { token: string; scheme: "lig
         ))}
         {keys.length ? (
           <div className="grid grid-cols-[3.75rem_minmax(0,1fr)] items-center gap-1.5">
-            <span className="text-[0.65rem] text-muted-foreground">Keys</span>
+            <span className="text-[0.6875rem] text-muted-foreground">Keys</span>
             <div className="grid grid-cols-12 gap-0.5">{keys.map((k) => swatch(k.color, k.name))}</div>
           </div>
         ) : null}

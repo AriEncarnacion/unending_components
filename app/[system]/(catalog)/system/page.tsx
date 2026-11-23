@@ -1,6 +1,7 @@
+import { Suspense } from "react"
 import type { Metadata } from "next"
 
-import { SystemPage } from "@/components/showcase/system/system-page"
+import { SystemPage, SystemPageWithParams } from "@/components/showcase/system/system-page"
 
 export const metadata: Metadata = {
   title: "Design system",
@@ -8,5 +9,10 @@ export const metadata: Metadata = {
 }
 
 export default function Page() {
-  return <SystemPage />
+  // ?entry=<name> opens that entry beside the system.
+  return (
+    <Suspense fallback={<SystemPage />}>
+      <SystemPageWithParams />
+    </Suspense>
+  )
 }
