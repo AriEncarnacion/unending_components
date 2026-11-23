@@ -253,7 +253,8 @@ export function Tuner({
             <PresetList compact />
           </InspectorSection>
 
-          <InspectorSection title="Colour" summary={token}>
+          {/* Colour starts open, the rest closed, whatever the inspector's default. */}
+          <InspectorSection title="Colour" summary={token} defaultOpen>
             <div className="flex items-center gap-2">
               <Select value={token} onValueChange={(value) => value && onTokenChange(value)}>
                 <SelectTrigger className="min-w-0 flex-1 font-mono text-xs" aria-label="Token">
@@ -287,7 +288,7 @@ export function Tuner({
             <PaletteSwatches token={token} scheme={scheme} />
           </InspectorSection>
 
-          <InspectorSection title="Shape and space" summary={`${theme["--radius"]} · ${theme["--spacing"]}`}>
+          <InspectorSection title="Shape and space" summary={`${theme["--radius"]} · ${theme["--spacing"]}`} defaultOpen={false}>
             <ThemeSlider name="--radius" label="Radius" min={0} max={1.5} step={0.025} unit="rem" display={(v) => formatPx(toPx(v))} />
             <ThemeSlider name="--spacing" label="Spacing unit" min={0.1875} max={0.3125} step={0.0078125} unit="rem" display={(v) => formatPx(toPx(v))} />
           </InspectorSection>
@@ -295,6 +296,7 @@ export function Tuner({
           <InspectorSection
             title="Type"
             summary={`${fontLabel("heading")} · ${fontLabel("sans")} · ${fontLabel("mono")}`}
+            defaultOpen={false}
           >
             {(["heading", "sans", "mono"] as const).map((role) => (
               <InspectorRow
@@ -346,6 +348,7 @@ export function Tuner({
           <InspectorSection
             title="Motion"
             summary={`${theme["--default-transition-duration"]} · ${easings.find((e) => e.value === theme["--default-transition-timing-function"])?.name ?? "custom"}`}
+            defaultOpen={false}
           >
             <ThemeSlider
               name="--default-transition-duration"

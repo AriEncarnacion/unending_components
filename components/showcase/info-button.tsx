@@ -48,6 +48,7 @@ const commandSections: { title: string; context: string; commands: CommandInfo[]
       { name: "/unending:capture <screenshot or URL>", body: "Rebuild a pattern you spotted as a new entry on stock shadcn parts." },
       { name: "/unending:harvest <path>", body: "Promote a component from one of your apps into the catalog." },
       { name: "/unending:restyle <registry item>", body: "Adopt an item from another shadcn registry, restyled onto the catalog." },
+      { name: "/unending:audit-sizes <entry or URL>", body: "Check an entry or page at every device size, as windows and narrow containers, and suggest fixes." },
     ],
   },
 ]
