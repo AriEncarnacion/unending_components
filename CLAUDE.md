@@ -20,7 +20,7 @@ This repo is Ari's public catalog of intent-level shadcn components, plus its sh
 
 ## Commands
 
-- `npm run dev` runs the showcase at http://localhost:3000.
+- `npm run dev` runs the showcase at http://localhost:3000. `npm run up` runs `npm install`, starts it and opens the home page.
 - `npm run typecheck`, `npm run lint` and `npm run build` check the code.
 - `npm run registry:build` regenerates the theme item and the plugin catalog index, and validates local design systems. `npm run registry:check` checks they're in sync.
 

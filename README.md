@@ -18,7 +18,7 @@ git clone https://github.com/AriEncarnacion/unending_components && cd unending_c
 npm install && npm run dev
 ```
 
-Open <http://localhost:3000>. The dev server only listens on your own machine.
+Open <http://localhost:3000>, or run `npm run up` to install, start the server and open it in one step. The dev server only listens on your own machine.
 
 ## Make a design system
 
