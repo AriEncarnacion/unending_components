@@ -141,10 +141,8 @@ export function DeleteDialog({
   system: { id: string; name: string; saved: boolean }
 }) {
   const ds = useDesignSystems()
-  const { state, ship } = useShip()
-  const status = state.status[system.id]
-  // On GitHub already (shipped, or shipped once and changed since): deleting ships the removal too.
-  const onGitHub = !!state.ready?.ok && (status === "shipped" || (status === "unshipped" && system.saved))
+  const { state } = useShip()
+  const shipped = state.status[system.id]?.status !== undefined && state.status[system.id]?.status !== "unshipped"
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
@@ -153,9 +151,9 @@ export function DeleteDialog({
           <AlertDialogDescription>
             {!system.saved
               ? "It was never saved, so its draft is all there is. This can't be undone."
-              : onGitHub
-                ? `This deletes design-systems/${system.id}/ here and ships the removal: a pull request that merges once its checks pass. Apps already linked to it keep their own copy.`
-                : `This deletes design-systems/${system.id}/ and any unsaved draft. Git can bring the files back until you commit. Apps already linked to it keep their own copy.`}
+              : shipped
+                ? `This deletes design-systems/${system.id}/ on this Mac only. The registry keeps every version it shipped, so apps keep installing it and Pull can bring it back.`
+                : `This deletes design-systems/${system.id}/ and any unsaved draft. It never shipped, so nothing can bring it back.`}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -165,11 +163,10 @@ export function DeleteDialog({
             onClick={async () => {
               const result = await ds.remove(system.id)
               if (!result.ok) return void toast.error(result.error)
-              if (onGitHub) await ship(system.id, "delete")
-              toast(onGitHub ? `Deleted ${system.name}; shipping the removal` : `Deleted ${system.name}`)
+              toast(`Deleted ${system.name} from this Mac`)
             }}
           >
-            {onGitHub ? "Delete and ship" : "Delete"}
+            Delete
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
@@ -196,7 +193,7 @@ function SaveDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open
     setSaving(false)
     if (result.ok) {
       onOpenChange(false)
-      toast(`Saved ${active.system.name}`, { description: `Wrote design-systems/${active.system.id}/. Ship puts it on GitHub.` })
+      toast(`Saved ${active.system.name}`, { description: `Wrote design-systems/${active.system.id}/. Ship puts it on the registry.` })
     } else setProblem(result)
   }
 
@@ -205,7 +202,7 @@ function SaveDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Save {active.system.name}</DialogTitle>
-          <DialogDescription>Writes design-systems/{active.system.id}/ on this machine. Ship puts it on GitHub.</DialogDescription>
+          <DialogDescription>Writes design-systems/{active.system.id}/ on this Mac. Ship puts it on the registry.</DialogDescription>
         </DialogHeader>
         <div className="flex max-h-[50vh] flex-col gap-3 overflow-y-auto text-sm">
           {groups.length ? (

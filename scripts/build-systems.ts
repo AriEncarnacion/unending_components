@@ -1,10 +1,16 @@
-// Builds one installable registry per design system, plus Stock, from the
-// files the tuner saves. Each entry is baked: its useEntryTuning(...) call
-// becomes a plain object with the system's values, so an app receives an
-// ordinary component with no tuning layer.
+// Builds installable registries from the files the tuner saves. Each entry is
+// baked: its useEntryTuning(...) call becomes a plain object with the
+// system's values, so an app receives an ordinary component with no tuning
+// layer.
 //
-//   public/r/*.json        Stock (what the @unending namespace serves by default)
-//   public/r/<id>/*.json   each design system in design-systems/<id>/
+//   public/r/*.json   Stock, committed and published to the registry by CI
+//   --system <id> --out <dir>
+//                     one design system from design-systems/<id>/, for Ship.
+//                     Systems never go into the repo: Ship uploads them
+//                     straight to the registry host.
+//
+// Every build also runs the registry Worker's own upload checks, so a build
+// that passes here won't be refused there for its shape.
 //
 // Run with: node --experimental-strip-types scripts/build-systems.ts [--check]
 import { execFileSync } from "node:child_process"
@@ -17,9 +23,16 @@ import { readCommitted } from "../lib/design-systems/load.ts"
 import { fontById, stockFonts } from "../lib/design-systems/fonts.ts"
 import { paletteVars, scopedSelectors, scopedVars, toVar } from "../lib/design-systems/resolve.ts"
 import { parsePaletteRef, validate, type Knob, type SystemFile, type Working } from "../lib/design-systems/schema.ts"
+import { checkBundle } from "../worker/src/shared/validate.ts"
 
 const root = process.cwd()
 const check = process.argv.includes("--check")
+const argument = (flag: string) => {
+  const at = process.argv.indexOf(flag)
+  return at === -1 ? undefined : process.argv[at + 1]
+}
+const onlySystem = argument("--system")
+const outDir = argument("--out")
 const registry = JSON.parse(readFileSync(path.join(root, "registry.json"), "utf8"))
 const ADDRESS = new URL(registry.homepage).pathname.slice(1)
 const NS = "@unending"
@@ -355,17 +368,22 @@ function writeFile(base: string, relative: string, content: string) {
 
 // ── Main ────────────────────────────────────────────────────────────────────
 
-function listFiles(dir: string, prefix = ""): string[] {
+function listFiles(dir: string): string[] {
   if (!existsSync(dir)) return []
-  return readdirSync(dir).flatMap((name) => {
-    const full = path.join(dir, name)
-    return statSync(full).isDirectory() ? listFiles(full, `${prefix}${name}/`) : [`${prefix}${name}`]
-  })
+  return readdirSync(dir).filter((name) => statSync(path.join(dir, name)).isFile())
+}
+
+/** Runs the registry Worker's upload checks on a built registry. Packages are checked against the live allowlist at upload. */
+function hostCheck(dir: string, label: string) {
+  const files: Record<string, string> = {}
+  for (const name of listFiles(dir).filter((f) => f.endsWith(".json"))) files[`r/${name}`] = readFileSync(path.join(dir, name), "utf8")
+  for (const problem of checkBundle(files, []).problems) problems.push(`${label} ${problem}`)
 }
 
 const knobs = await loadKnobs()
 checkKnobDefaults(knobs)
-const systems = await readCommitted()
+const systems = (await readCommitted()).filter((c) => !onlySystem || c.system.id === onlySystem)
+if (onlySystem && !systems.length) problems.push(`design-systems/${onlySystem}: no such saved system`)
 for (const committed of systems) {
   for (const issue of validate(committed, stock, knobs)) problems.push(`design-systems/${issue.where}: ${issue.message}`)
   if (!existsSync(path.join(root, "design-systems", committed.system.id, "system.json")))
@@ -378,12 +396,33 @@ if (problems.length) {
   process.exit(1)
 }
 
-const target = check ? path.join(tmpdir(), `unending-r-${process.pid}`) : path.join(root, "public/r")
 const staging = path.join(root, ".generated/registry")
-rmSync(target, { recursive: true, force: true })
+
+if (onlySystem) {
+  if (!outDir) {
+    console.error("--system needs --out <dir>.")
+    process.exit(1)
+  }
+  const target = path.resolve(root, outDir)
+  rmSync(target, { recursive: true, force: true })
+  const committed = systems[0]
+  buildOne({ system: committed.system, entries: committed.entries }, target, path.join(staging, committed.system.id))
+  hostCheck(target, `${committed.system.id}:`)
+  if (problems.length) {
+    console.error(problems.map((p) => `  - ${p}`).join("\n"))
+    process.exit(1)
+  }
+  console.log(`Built ${committed.system.name} into ${path.relative(root, target)}.`)
+  process.exit(0)
+}
+
+const target = check ? path.join(tmpdir(), `unending-r-${process.pid}`) : path.join(root, "public/r")
+// Stock only: the top-level files. Any folders under public/r are local
+// leftovers from before systems moved to the registry host, and git-ignored.
+for (const name of listFiles(target)) rmSync(path.join(target, name))
+if (check) rmSync(target, { recursive: true, force: true })
 buildOne(null, target, path.join(staging, "stock"))
-for (const committed of systems)
-  buildOne({ system: committed.system, entries: committed.entries }, path.join(target, committed.system.id), path.join(staging, committed.system.id))
+hostCheck(target, "Stock:")
 
 if (problems.length) {
   console.error(problems.map((p) => `  - ${p}`).join("\n"))
@@ -403,11 +442,11 @@ if (check) {
   ]
   rmSync(target, { recursive: true, force: true })
   if (stale.length) {
-    console.error("public/r is out of date with the design systems. Run npm run registry:build.")
+    console.error("public/r is out of date. Run npm run registry:build.")
     for (const line of stale.slice(0, 20)) console.error(`  - ${line}`)
     process.exit(1)
   }
-  console.log(`Design systems in sync (Stock + ${systems.length}).`)
+  console.log(`Stock in sync; ${systems.length} local design system${systems.length === 1 ? "" : "s"} valid.`)
 } else {
-  console.log(`Built Stock + ${systems.length} design system${systems.length === 1 ? "" : "s"} into public/r.`)
+  console.log(`Built Stock into public/r; ${systems.length} local design system${systems.length === 1 ? "" : "s"} valid. Ship uploads systems to the registry.`)
 }

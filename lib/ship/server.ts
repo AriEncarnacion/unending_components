@@ -1,66 +1,74 @@
-// Ships a design system: one action in the catalog, a pull request behind it.
+// Ships a design system straight to the registry host. No branch, no PR, no
+// Actions run: nothing about a system ever enters the public repo or its logs.
 //
-//   1. A git worktree is made from the remote's default branch, so nothing
-//      else in your working tree (other edits, other systems) is included.
-//   2. The system's saved files are copied in and `npm run registry:build`
-//      regenerates everything derived from them.
-//   3. The result is committed to ship/<id>, pushed, and a PR is opened (or
-//      the existing one updated).
-//   4. CI and the Claude review run on the PR. When every check passes the
-//      PR is squash-merged; when one fails, the PR stays open and the catalog
-//      shows why.
+//   1. Build the system's registry from your saved files.
+//   2. Check it with the registry Worker's own upload rules.
+//   3. Optionally, a local Claude review of what changed since the last ship.
+//   4. Write the release manifest (every file's SHA-256), then sign it and the
+//      upload request together: one Touch ID.
+//   5. The Worker verifies, validates, writes the version create-only and
+//      moves the pointer. You get an email.
 //
-// Dev server only. Jobs live in memory and in .generated/ship/jobs.json.
+// Also: Roll back (move the pointer to an earlier version), Pull (fetch every
+// system's current source, verified), and Set up this Mac (make its key).
+//
+// Dev server only. Jobs live in memory and .generated/ship/jobs.json; what was
+// shipped from here lives in .generated/ship/shipped.json.
 import { execFile } from "node:child_process"
-import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync, cpSync } from "node:fs"
+import { createHash } from "node:crypto"
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import path from "node:path"
 import { promisify } from "node:util"
+
+import { manifestPayload, RELEASE_FORMAT, type Release } from "../../worker/src/shared/protocol.ts"
+import { checkBundle } from "../../worker/src/shared/validate.ts"
+import { admin, pinnedKeys, pinnedKeysFile, registryUrl, registryUrlProblem, releaseMessage, verifyRelease } from "../registry-host/client.ts"
+import { createKey, keyFile, keyInfo, signerAvailable, type KeyInfo } from "../registry-host/signer.ts"
+import { HEADER } from "../../worker/src/shared/protocol.ts"
+import { idPattern } from "../design-systems/schema.ts"
 
 const run = promisify(execFile)
 const root = process.cwd()
 const shipDir = path.join(root, ".generated/ship")
 const jobsFile = path.join(shipDir, "jobs.json")
-
-/** Everything a ship may change: the system's files and what the registry build derives from them. */
-export const SHIP_PATHS = [
-  "design-systems",
-  "public/r",
-  "plugin/skills/unending-catalog/references/catalog.md",
-  "registry.json",
-]
-
-export type ShipCheck = { name: string; bucket: string; link?: string }
+const shippedFile = path.join(shipDir, "shipped.json")
+const systemsDir = path.join(root, "design-systems")
 
 export type ShipJob = {
   systemId: string
   systemName: string
-  action: "ship" | "delete"
-  state: "running" | "checking" | "merged" | "blocked" | "failed" | "nothing"
+  action: "ship" | "rollback" | "pull"
+  state: "running" | "shipped" | "blocked" | "needs-allow" | "failed" | "nothing"
   step: string
   log: { at: number; text: string }[]
-  pr?: { number: number; url: string }
-  checks?: ShipCheck[]
+  version?: number
   findings?: string
+  unknownPackages?: string[]
   error?: string
   note?: string
   startedAt: number
   finishedAt?: number
-  reconciledAt?: number
 }
 
-type Store = { jobs: Map<string, ShipJob>; fetchedAt: number; preflight?: { at: number; value: Preflight } }
+/** What this Mac last shipped or pulled, per system. */
+type Shipped = { latest: number; current: number; sourceHash: string; inputsHash?: string; at: number }
+
+type Store = { jobs: Map<string, ShipJob> }
 const globalStore = globalThis as unknown as { __unendingShip?: Store }
-const store: Store = (globalStore.__unendingShip ??= { jobs: loadJobs(), fetchedAt: 0 })
+const store: Store = (globalStore.__unendingShip ??= { jobs: loadJobs() })
 
 function loadJobs() {
   try {
-    const saved = JSON.parse(readFileSync(jobsFile, "utf8")) as ShipJob[]
-    // A job that was mid-flight when the dev server stopped can't resume.
+    const states = ["running", "shipped", "blocked", "needs-allow", "failed", "nothing"]
+    // Jobs from before Ship went direct (pull requests) don't fit; drop them.
+    const saved = (JSON.parse(readFileSync(jobsFile, "utf8")) as ShipJob[]).filter(
+      (job) => ["ship", "rollback", "pull"].includes(job.action) && states.includes(job.state)
+    )
     return new Map(
       saved.map((job) => [
         job.systemId,
-        job.state === "running" || job.state === "checking"
-          ? { ...job, state: "failed" as const, error: "The dev server restarted while this was shipping. Ship again to pick up where it left off." }
+        job.state === "running"
+          ? { ...job, state: "failed" as const, error: "The dev server restarted during this. Check the registry, then try again." }
           : job,
       ])
     )
@@ -74,126 +82,128 @@ function persist() {
   writeFileSync(jobsFile, JSON.stringify([...store.jobs.values()], null, 2))
 }
 
-async function sh(cmd: string, args: string[], cwd = root, timeout = 120_000) {
-  const { stdout } = await run(cmd, args, { cwd, timeout, maxBuffer: 20 * 1024 * 1024, env: process.env })
-  return stdout.trim()
-}
-
-/** Like sh, but returns stdout even when the command exits non-zero (gh pr checks does while pending). */
-async function shAny(cmd: string, args: string[], cwd = root) {
+function readShipped(): Record<string, Shipped> {
   try {
-    return { ok: true, out: await sh(cmd, args, cwd) }
-  } catch (error) {
-    const e = error as { stdout?: string; stderr?: string; message: string }
-    return { ok: false, out: (e.stdout ?? "").trim(), err: (e.stderr ?? e.message).trim() }
+    return JSON.parse(readFileSync(shippedFile, "utf8"))
+  } catch {
+    return {}
   }
 }
 
-// ── Readiness ──────────────────────────────────────────────────────────────
+function writeShipped(id: string, value: Shipped) {
+  mkdirSync(shipDir, { recursive: true })
+  writeFileSync(shippedFile, JSON.stringify({ ...readShipped(), [id]: value }, null, 2))
+}
 
-export type Preflight = { ok: boolean; problems: string[]; repo?: string; base?: string }
+// ── What a system is made of ────────────────────────────────────────────────
 
-export async function preflight(force = false): Promise<Preflight> {
-  if (!force && store.preflight && Date.now() - store.preflight.at < 30_000) return store.preflight.value
+/** The system's own files, as they're uploaded: system.json and entries/<name>.json (never proposals). */
+function sourceFiles(id: string): Record<string, string> {
+  const dir = path.join(systemsDir, id)
+  const files: Record<string, string> = { "system.json": readFileSync(path.join(dir, "system.json"), "utf8") }
+  const entries = path.join(dir, "entries")
+  if (existsSync(entries))
+    for (const name of readdirSync(entries).sort())
+      if (name.endsWith(".json") && !name.endsWith(".proposed.json")) files[`entries/${name}`] = readFileSync(path.join(entries, name), "utf8")
+  return files
+}
+
+const hashOf = (files: Record<string, string>) =>
+  createHash("sha256")
+    .update(JSON.stringify(Object.entries(files).sort(([a], [b]) => (a < b ? -1 : 1))))
+    .digest("hex")
+
+/** Everything besides the system's own files that goes into its build: entries, the theme, the build script. */
+function inputsHash() {
+  const registry = JSON.parse(readFileSync(path.join(root, "registry.json"), "utf8")) as { items: { files?: { path: string }[] }[] }
+  const files: Record<string, string> = {}
+  const add = (file: string) => {
+    if (existsSync(path.join(root, file))) files[file] = readFileSync(path.join(root, file), "utf8")
+  }
+  for (const item of registry.items) for (const file of item.files ?? []) add(file.path)
+  for (const file of ["registry.json", "scripts/build-systems.ts", "scripts/templates/unending-colors.mjs"]) add(file)
+  for (const file of readdirSync(path.join(root, "lib/design-systems"))) add(`lib/design-systems/${file}`)
+  return hashOf(files)
+}
+
+// ── Readiness and status ────────────────────────────────────────────────────
+
+export type Preflight = {
+  ok: boolean
+  problems: string[]
+  registry: string
+  /** This Mac's key, if it has one, and whether the plugin pins it yet. */
+  key?: KeyInfo & { pinned: boolean }
+  /** Whether `claude` is on the PATH, for the optional review. */
+  claude: boolean
+}
+
+export async function preflight(): Promise<Preflight> {
   const problems: string[] = []
-  let repo: string | undefined
-  let base: string | undefined
-  const origin = await shAny("git", ["remote", "get-url", "origin"])
-  if (!origin.ok) problems.push("This repo has no GitHub remote yet. Create the GitHub repo and push the first commit.")
-  const auth = await shAny("gh", ["auth", "status"])
-  if (!auth.ok) problems.push("The GitHub CLI isn't signed in. Run gh auth login in a terminal.")
-  if (origin.ok && auth.ok) {
-    const view = await shAny("gh", ["repo", "view", "--json", "nameWithOwner,defaultBranchRef"])
-    if (view.ok) {
-      const parsed = JSON.parse(view.out) as { nameWithOwner: string; defaultBranchRef?: { name: string } }
-      repo = parsed.nameWithOwner
-      base = parsed.defaultBranchRef?.name || undefined
-      if (!base) problems.push("The GitHub repo has no default branch yet. Push the first commit.")
-    } else problems.push("Couldn't read the GitHub repo. Check the origin remote and your gh login.")
+  const signer = await signerAvailable()
+  if (signer) problems.push(signer)
+  const url = registryUrlProblem()
+  if (url) problems.push(url)
+  let key: Preflight["key"]
+  if (!signer) {
+    try {
+      const info = await keyInfo()
+      if (info) key = { ...info, pinned: pinnedKeys().some((k) => k.keyId === info.keyId && !k.retiredAt) }
+    } catch (error) {
+      problems.push(`Couldn't read this Mac's admin key: ${(error as Error).message}`)
+    }
   }
-  if (base) {
-    await fetchBase(base, true)
-    const workflows = await shAny("git", ["ls-tree", "--name-only", `origin/${base}`, ".github/workflows/"])
-    for (const file of ["ci.yml", "claude-review.yml"])
-      if (!workflows.out.split("\n").some((line) => line.endsWith(file)))
-        problems.push(`.github/workflows/${file} isn't on ${base} yet, so nothing would check the PR.`)
-    const secrets = await shAny("gh", ["secret", "list", "--json", "name"])
-    const names = secrets.ok ? (JSON.parse(secrets.out || "[]") as { name: string }[]).map((s) => s.name) : []
-    if (!names.includes("CLAUDE_CODE_OAUTH_TOKEN") && !names.includes("ANTHROPIC_API_KEY"))
-      problems.push(
-        "The Claude review needs a token. Run /install-github-app in Claude Code (or claude setup-token, then gh secret set CLAUDE_CODE_OAUTH_TOKEN)."
-      )
-  }
-  const value = { ok: problems.length === 0, problems, repo, base }
-  store.preflight = { at: Date.now(), value }
-  return value
-}
-
-async function fetchBase(base: string, force = false) {
-  if (!force && Date.now() - store.fetchedAt < 60_000) return
-  await shAny("git", ["fetch", "--quiet", "origin", base])
-  store.fetchedAt = Date.now()
-}
-
-// ── Status per system ─────────────────────────────────────────────────────
-
-export type ShipStatus = "shipped" | "unshipped" | "unknown"
-
-export async function statuses(ids: string[]): Promise<Record<string, ShipStatus>> {
-  const check = await preflight()
-  const result: Record<string, ShipStatus> = {}
-  if (!check.base) {
-    for (const id of ids) result[id] = "unknown"
-    return result
-  }
-  await fetchBase(check.base)
-  const remote = new Set(
-    (await shAny("git", ["ls-tree", "--name-only", `origin/${check.base}`, "design-systems/"])).out
-      .split("\n")
-      .map((line) => line.replace(/^design-systems\//, ""))
-      .filter(Boolean)
+  const claude = await run("which", ["claude"]).then(
+    () => true,
+    () => false
   )
-  for (const id of new Set([...ids, ...remote])) {
-    const dir = `design-systems/${id}`
-    const local = existsSync(path.join(root, dir))
-    if (local !== remote.has(id)) {
-      result[id] = "unshipped"
+  return { ok: problems.length === 0 && !!key, problems, registry: registryUrl, key, claude }
+}
+
+/**
+ * shipped:   the registry serves what's saved here
+ * older:     the registry serves an earlier version (rolled back)
+ * changed:   saved here since the last ship
+ * behind:    unchanged here, but the catalog's entries changed since it shipped
+ * unshipped: never shipped (or pulled) from this Mac
+ */
+export type ShipStatus = "shipped" | "older" | "changed" | "behind" | "unshipped"
+
+export function statuses(ids: string[]): Record<string, { status: ShipStatus; current?: number; latest?: number }> {
+  const shipped = readShipped()
+  const inputs = inputsHash()
+  const result: Record<string, { status: ShipStatus; current?: number; latest?: number }> = {}
+  for (const id of ids) {
+    const record = shipped[id]
+    if (!record || !existsSync(path.join(systemsDir, id, "system.json"))) {
+      result[id] = { status: "unshipped" }
       continue
     }
-    const diff = await shAny("git", ["diff", "--quiet", `origin/${check.base}`, "--", dir])
-    const untracked = (await shAny("git", ["ls-files", "--others", "--exclude-standard", "--", dir])).out
-    result[id] = diff.ok && !untracked ? "shipped" : "unshipped"
+    const status: ShipStatus =
+      hashOf(sourceFiles(id)) !== record.sourceHash
+        ? "changed"
+        : record.current !== record.latest
+          ? "older"
+          : record.inputsHash && record.inputsHash !== inputs
+            ? "behind"
+            : "shipped"
+    result[id] = { status, current: record.current, latest: record.latest }
   }
   return result
-}
-
-/** A system's name as it is on the remote default branch, if it's there. */
-export async function remoteSystemName(id: string) {
-  const check = await preflight()
-  if (!check.base) return undefined
-  const file = await shAny("git", ["show", `origin/${check.base}:design-systems/${id}/system.json`])
-  if (!file.ok) return undefined
-  try {
-    return (JSON.parse(file.out) as { name?: string }).name
-  } catch {
-    return undefined
-  }
 }
 
 export function jobs() {
   return Object.fromEntries(store.jobs)
 }
 
-// ── The ship itself ────────────────────────────────────────────────────────
+// ── Jobs ────────────────────────────────────────────────────────────────────
 
-export function startShip(systemId: string, systemName: string, action: "ship" | "delete") {
+function begin(systemId: string, systemName: string, action: ShipJob["action"]) {
   const current = store.jobs.get(systemId)
-  if (current && (current.state === "running" || current.state === "checking"))
-    throw new Error(`${systemName} is already shipping.`)
+  if (current?.state === "running") throw new Error(`${systemName} is busy: ${current.step}.`)
   const job: ShipJob = { systemId, systemName, action, state: "running", step: "Starting", log: [], startedAt: Date.now() }
   store.jobs.set(systemId, job)
   persist()
-  void ship(job)
   return job
 }
 
@@ -208,202 +218,274 @@ function finish(job: ShipJob, state: ShipJob["state"], extra: Partial<ShipJob> =
   persist()
 }
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
-
-async function ship(job: ShipJob) {
-  const branch = `ship/${job.systemId}`
-  const worktree = path.join(shipDir, `worktree-${job.systemId}`)
+async function guarded(job: ShipJob, work: () => Promise<void>) {
   try {
-    const check = await preflight(true)
-    if (!check.ok || !check.base) throw new Error(check.problems.join(" "))
-    const base = check.base
-
-    step(job, `Preparing a clean copy of ${base}`)
-    await shAny("git", ["worktree", "remove", "--force", worktree])
-    rmSync(worktree, { recursive: true, force: true })
-    await sh("git", ["fetch", "--quiet", "origin", base])
-    await sh("git", ["worktree", "add", "--force", "-B", branch, worktree, `origin/${base}`])
-
-    const dir = `design-systems/${job.systemId}`
-    rmSync(path.join(worktree, dir), { recursive: true, force: true })
-    if (job.action === "ship") {
-      if (!existsSync(path.join(root, dir))) throw new Error(`${dir} doesn't exist. Save the system before shipping it.`)
-      cpSync(path.join(root, dir), path.join(worktree, dir), { recursive: true })
-    }
-
-    step(job, "Building the registry")
-    symlinkSync(path.join(root, "node_modules"), path.join(worktree, "node_modules"))
-    await sh("npm", ["run", "--silent", "registry:build"], worktree, 300_000)
-
-    await sh("git", ["add", "--all", "--", ...SHIP_PATHS], worktree)
-    const staged = await shAny("git", ["diff", "--cached", "--quiet"], worktree)
-    if (staged.ok) {
-      await cleanup(worktree)
-      finish(job, "nothing", { note: `${job.systemName} is already on ${base}. Nothing to ship.` })
-      return
-    }
-    const verb = job.action === "delete" ? "Remove" : "Ship"
-    await sh(
-      "git",
-      ["commit", "--quiet", "-m", `${verb} the ${job.systemName} design system`, "-m", "Shipped from the Unending catalog."],
-      worktree
-    )
-
-    step(job, "Pushing")
-    await sh("git", ["push", "--quiet", "--force", "-u", "origin", `${branch}:${branch}`], worktree)
-
-    step(job, "Opening the pull request")
-    const open = await sh("gh", ["pr", "list", "--head", branch, "--state", "open", "--json", "number,url"])
-    let pr = (JSON.parse(open || "[]") as { number: number; url: string }[])[0]
-    if (!pr) {
-      const body = [
-        job.action === "delete"
-          ? `Removes the **${job.systemName}** design system (\`${dir}\`) and rebuilds the registry.`
-          : `Ships the **${job.systemName}** design system (\`${dir}\`) and the registry built from it.`,
-        "",
-        "Opened by **Ship** in the Unending catalog. It merges itself once CI and the Claude review pass.",
-      ].join("\n")
-      const url = await sh("gh", [
-        "pr",
-        "create",
-        "--base",
-        base,
-        "--head",
-        branch,
-        "--title",
-        `${verb} ${job.systemName}`,
-        "--body",
-        body,
-      ])
-      pr = { url, number: Number(url.split("/").pop()) }
-    }
-    job.pr = pr
-    await cleanup(worktree)
-
-    job.state = "checking"
-    step(job, "Waiting for CI and the Claude review")
-    const started = Date.now()
-    for (;;) {
-      await sleep(10_000)
-      // Someone may merge or close the PR on GitHub while the checks run.
-      if (await settledOnGitHub(job, base)) return
-      const result = await shAny("gh", ["pr", "checks", String(pr.number), "--json", "name,bucket,link"])
-      const checks = (result.out ? (JSON.parse(result.out) as ShipCheck[]) : []).filter((c) => c.bucket !== "skipping")
-      job.checks = checks
-      persist()
-      if (!checks.length) {
-        if (Date.now() - started > 4 * 60_000)
-          throw new Error(`No checks started on PR #${pr.number}. Are the workflows on ${base}?`)
-        continue
-      }
-      if (checks.some((c) => c.bucket === "fail" || c.bucket === "cancel")) {
-        finish(job, "blocked", { findings: await reviewComment(pr.number), step: "Checks found problems" })
-        return
-      }
-      if (checks.every((c) => c.bucket === "pass")) break
-      if (Date.now() - started > 30 * 60_000) throw new Error(`Checks on PR #${pr.number} took longer than 30 minutes.`)
-    }
-
-    step(job, "Merging")
-    if (await settledOnGitHub(job, base)) return
-    await sh("gh", ["pr", "merge", String(pr.number), "--squash", "--delete-branch"])
-    const note = await syncLocal(base)
-    finish(job, "merged", { step: "Shipped", note, findings: await reviewComment(pr.number) })
+    await work()
   } catch (error) {
-    await cleanup(worktree)
-    finish(job, "failed", { error: (error as Error).message.split("\n").slice(0, 6).join("\n") })
+    finish(job, "failed", { error: (error as Error).message.split("\n").slice(0, 8).join("\n") })
   }
 }
 
-/**
- * Whether your working copies of the shipped paths (untracked files included)
- * are exactly what's on the remote branch. Uses a throwaway index, so your
- * real index and files are untouched.
- */
-async function matchesRemote(base: string) {
-  const index = path.join(shipDir, "compare.index")
-  mkdirSync(shipDir, { recursive: true })
-  const env = { ...process.env, GIT_INDEX_FILE: index }
-  const git = (args: string[]) => run("git", args, { cwd: root, env, maxBuffer: 20 * 1024 * 1024 })
+export type ShipOptions = { org?: string; allow?: string[]; review?: boolean }
+
+export function startShip(systemId: string, systemName: string, options: ShipOptions) {
+  const job = begin(systemId, systemName, "ship")
+  void guarded(job, () => ship(job, options))
+  return job
+}
+
+async function ship(job: ShipJob, options: ShipOptions) {
+  const id = job.systemId
+  const buildDir = path.join(shipDir, id, "build")
+  const lastDir = path.join(shipDir, id, "last")
+
+  step(job, "Building the registry")
   try {
-    await git(["read-tree", `origin/${base}`])
-    await git(["add", "--all", "--", ...SHIP_PATHS])
-    await git(["diff", "--cached", "--quiet", `origin/${base}`, "--", ...SHIP_PATHS])
-    return true
-  } catch {
-    return false
-  } finally {
-    rmSync(index, { force: true })
+    await run("node", ["--experimental-strip-types", "--no-warnings", "scripts/build-systems.ts", "--system", id, "--out", buildDir], {
+      cwd: root,
+      timeout: 300_000,
+      maxBuffer: 20 * 1024 * 1024,
+    })
+  } catch (error) {
+    const e = error as { stderr?: string; stdout?: string }
+    return finish(job, "blocked", { step: "The build found problems", findings: (e.stderr || e.stdout || "").trim().slice(0, 6000) })
   }
-}
 
-/** Finishes the job if its PR was merged or closed on GitHub by hand. */
-async function settledOnGitHub(job: ShipJob, base: string) {
-  if (!job.pr || job.state === "merged") return job.state === "merged"
-  const view = await shAny("gh", ["pr", "view", String(job.pr.number), "--json", "state"])
-  if (!view.ok || !view.out) return false
-  const state = (JSON.parse(view.out) as { state: string }).state
-  if (state === "MERGED") {
-    const note = await syncLocal(base)
-    finish(job, "merged", { step: "Shipped", note: `Merged on GitHub by hand. ${note}`, findings: await reviewComment(job.pr.number) })
-    return true
-  }
-  if (state === "CLOSED") {
-    finish(job, "failed", { error: `Pull request #${job.pr.number} was closed without merging. Ship again to reopen the work.` })
-    return true
-  }
-  return false
-}
+  step(job, "Checking it against the registry's rules")
+  const source = sourceFiles(id)
+  const files: Record<string, string> = {}
+  for (const name of readdirSync(buildDir).filter((f) => f.endsWith(".json")).sort()) files[`r/${name}`] = readFileSync(path.join(buildDir, name), "utf8")
+  for (const [file, content] of Object.entries(source)) files[`src/${file}`] = content
+  const checked = checkBundle(files, [], id)
+  if (checked.problems.length)
+    return finish(job, "blocked", { step: "The registry would refuse this", findings: checked.problems.join("\n") })
 
-/**
- * Catches up jobs whose PR was settled on GitHub while no ship loop was
- * watching (the dev server restarted, or it was merged by hand).
- */
-export async function reconcile() {
-  const check = await preflight()
-  if (!check.base) return
-  for (const job of store.jobs.values())
-    if (job.pr && job.state !== "merged" && job.state !== "nothing" && Date.now() - (job.reconciledAt ?? 0) > 15_000) {
-      job.reconciledAt = Date.now()
-      await settledOnGitHub(job, check.base)
+  const record = readShipped()[id]
+  if (record && record.sourceHash === hashOf(source) && record.inputsHash === inputsHash() && existsSync(lastDir) && sameFiles(buildDir, lastDir))
+    return finish(job, "nothing", { note: `Version ${record.latest} already has exactly this.` })
+
+  if (options.review) {
+    step(job, "Claude is reviewing what changed")
+    const verdict = await review(job, buildDir, lastDir)
+    if (verdict.block) return finish(job, "blocked", { step: "The review found something to fix", findings: verdict.text })
+    job.findings = verdict.text
+  }
+
+  const commit = await run("git", ["rev-parse", "HEAD"], { cwd: root }).then(
+    (r) => r.stdout.trim(),
+    () => undefined
+  )
+  let version = (record?.latest ?? 0) + 1
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const items: Record<string, string> = {}
+    const sourceHashes: Record<string, string> = {}
+    for (const [file, content] of Object.entries(files)) {
+      const digest = createHash("sha256").update(content, "utf8").digest("hex")
+      if (file.startsWith("r/")) items[file.slice(2)] = digest
+      else sourceHashes[file.slice(4)] = digest
     }
+    const payload = manifestPayload({
+      format: RELEASE_FORMAT,
+      system: id,
+      version,
+      createdAt: new Date().toISOString(),
+      ...(commit && /^[0-9a-f]{40}$/.test(commit) ? { commit } : {}),
+      items,
+      source: sourceHashes,
+    })
+    const key = await keyInfo()
+    step(
+      job,
+      attempt
+        ? `Confirm again with Touch ID: the registry was already at version ${version - 1}`
+        : "Confirm with Touch ID to sign and upload"
+    )
+    const result = await admin<{ expectedVersion?: number; unknownPackages?: string[]; problems?: string[]; current?: number }>(
+      "POST",
+      `/admin/systems/${id}/versions`,
+      {
+        reason: `ship ${job.systemName} v${version} to the registry`,
+        body: {
+          version,
+          name: job.systemName,
+          ...(record ? {} : options.org ? { org: options.org } : {}),
+          ...(options.allow?.length ? { allow: options.allow } : {}),
+          release: { payload, keyId: key!.keyId },
+          files,
+          summary: `Shipped from the catalog${commit ? ` at ${commit.slice(0, 7)}` : ""}.`,
+        },
+        also: [{ message: releaseMessage(payload), header: HEADER.releaseSignature }],
+      }
+    )
+    if (result.status === 409 && result.data.expectedVersion && attempt === 0) {
+      version = result.data.expectedVersion
+      continue
+    }
+    if (result.status === 422 && result.data.unknownPackages?.length)
+      return finish(job, "needs-allow", { step: "New npm packages need your OK", unknownPackages: result.data.unknownPackages })
+    if (result.status === 422) return finish(job, "blocked", { step: "The registry refused it", findings: (result.data.problems ?? []).join("\n") })
+    if (!result.ok) throw new Error(result.data.error ?? `The registry answered ${result.status}.`)
+
+    rmSync(lastDir, { recursive: true, force: true })
+    cpSync(buildDir, lastDir, { recursive: true })
+    writeShipped(id, { latest: version, current: version, sourceHash: hashOf(source), inputsHash: inputsHash(), at: Date.now() })
+    return finish(job, "shipped", {
+      step: "Shipped",
+      version,
+      note: `Version ${version} is live at ${registryUrl}/r/${id}/. Apps pull it with /unending:sync.`,
+    })
+  }
+  throw new Error("The registry's version kept moving. Pull, then ship again.")
 }
 
-async function cleanup(worktree: string) {
-  await shAny("git", ["worktree", "remove", "--force", worktree])
-  rmSync(worktree, { recursive: true, force: true })
-  await shAny("git", ["worktree", "prune"])
+function sameFiles(a: string, b: string) {
+  const list = (dir: string) => readdirSync(dir).sort()
+  const left = list(a)
+  const right = list(b)
+  return left.length === right.length && left.every((f, i) => f === right[i] && readFileSync(path.join(a, f)).equals(readFileSync(path.join(b, f))))
 }
 
-/** The Claude review's summary comment on the PR, if it left one. */
-async function reviewComment(number: number) {
-  const result = await shAny("gh", ["pr", "view", String(number), "--json", "comments"])
-  if (!result.out) return undefined
-  const comments = (JSON.parse(result.out) as { comments: { body: string }[] }).comments
-  return [...comments].reverse().find((c) => /claude review/i.test(c.body.slice(0, 80)))?.body
+/** A local Claude review of the diff against the last ship from here. Uses your Claude login; no tools. */
+async function review(job: ShipJob, buildDir: string, lastDir: string): Promise<{ block: boolean; text: string }> {
+  const diff = existsSync(lastDir)
+    ? await run("git", ["diff", "--no-index", "--no-color", "--", lastDir, buildDir], { cwd: root, maxBuffer: 20 * 1024 * 1024 }).then(
+        (r) => r.stdout,
+        (e: { stdout?: string }) => e.stdout ?? ""
+      )
+    : readdirSync(buildDir)
+        .map((f) => `--- new file ${f}\n${readFileSync(path.join(buildDir, f), "utf8")}`)
+        .join("\n")
+  const instructions = [
+    `You review a design-system registry about to be published as "${job.systemName}". Consumers install these shadcn registry items with the shadcn CLI, so their code and CSS run in other people's apps.`,
+    "The user message is a diff of the built registry files against the last published version (or every file, if this is the first).",
+    "Look for: code that does anything beyond UI (network calls, storage, eval, reading env or cookies), new or unexpected npm dependencies, CSS that could break out of its rule, accessibility or contrast regressions, and obvious mistakes.",
+    "Reply with a first line that is exactly VERDICT: PASS or VERDICT: BLOCK (BLOCK only for something that must be fixed before publishing), then the findings as short bullet points.",
+  ].join("\n")
+  // A bare session: no tools, MCP servers, skills, settings or project files,
+  // so a review costs cents and the diff can't make it do anything.
+  const args = [
+    "-p",
+    "Review this diff.",
+    "--system-prompt",
+    instructions,
+    "--tools",
+    "",
+    "--strict-mcp-config",
+    "--disable-slash-commands",
+    "--setting-sources",
+    "",
+    "--no-session-persistence",
+    "--max-budget-usd",
+    "2",
+    "--output-format",
+    "json",
+  ]
+  const cwd = path.join(shipDir, "review")
+  mkdirSync(cwd, { recursive: true })
+  try {
+    const { stdout } = await new Promise<{ stdout: string }>((resolve, reject) => {
+      const child = execFile("claude", args, { cwd, timeout: 600_000, maxBuffer: 10 * 1024 * 1024 }, (error, out) =>
+        error ? reject(error) : resolve({ stdout: out })
+      )
+      child.stdin?.end(diff.slice(0, 400_000))
+    })
+    const text = String((JSON.parse(stdout) as { result?: string }).result ?? "").trim()
+    return { block: !/^VERDICT:\s*PASS/i.test(text), text: text.replace(/^VERDICT:\s*\w+\s*/i, "").trim() || "No findings." }
+  } catch (error) {
+    return { block: true, text: `The review couldn't run: ${(error as Error).message.split("\n")[0]}. Ship without the review, or try again.` }
+  }
+}
+
+// ── Roll back ───────────────────────────────────────────────────────────────
+
+export function startRollback(systemId: string, systemName: string, version: number) {
+  const job = begin(systemId, systemName, "rollback")
+  void guarded(job, async () => {
+    step(job, "Confirm with Touch ID")
+    const result = await admin<{ current?: number; latest?: number }>("POST", `/admin/systems/${systemId}/current`, {
+      reason: `make ${systemName} serve v${version}`,
+      body: { version },
+    })
+    if (!result.ok) throw new Error(result.data.error ?? `The registry answered ${result.status}.`)
+    const record = readShipped()[systemId]
+    if (record) writeShipped(systemId, { ...record, current: version, latest: result.data.latest ?? record.latest })
+    finish(job, "shipped", { step: `Serving version ${version}`, version, note: `${systemName} now serves version ${version}. Nothing was rebuilt.` })
+  })
+  return job
+}
+
+// ── Pull ────────────────────────────────────────────────────────────────────
+
+export const PULL_JOB = "__pull"
+
+type Pulled = {
+  systems: { id: string; name: string; latest: number; current: number; source?: { version: number; release: Release; files: Record<string, string> } }[]
 }
 
 /**
- * Brings the local default branch up to date when that's safe: you're on it
- * and your copies of the shipped files already match what was merged.
+ * Fetches every system's current source from the registry, verifies each
+ * release's signature and file hashes, and writes them to design-systems/.
+ * A system with saved changes that never shipped is left alone unless `force`.
  */
-async function syncLocal(base: string) {
-  await shAny("git", ["fetch", "--quiet", "origin", base])
-  store.fetchedAt = Date.now()
-  const current = (await shAny("git", ["branch", "--show-current"])).out
-  if (current !== base) return `Merged into ${base} on GitHub. You're on ${current || "a detached HEAD"}, so pull ${base} when you switch back.`
-  const differs = !(await matchesRemote(base))
-  if (differs) return `Merged into ${base} on GitHub. Your local files have changed since, so pull ${base} yourself when ready.`
-  // Local copies equal what was merged, but git won't fast-forward over them,
-  // so set them aside, fast-forward, then drop them (or put them back if the
-  // fast-forward fails). Only a stash this step made is ever touched.
-  const top = async () => (await shAny("git", ["rev-parse", "-q", "--verify", "refs/stash"])).out
-  const before = await top()
-  await shAny("git", ["stash", "push", "--include-untracked", "--quiet", "-m", "unending ship sync", "--", ...SHIP_PATHS])
-  const made = (await top()) !== before
-  const merged = await shAny("git", ["merge", "--ff-only", "--quiet", `origin/${base}`])
-  if (made) await shAny("git", ["stash", merged.ok ? "drop" : "pop", "--quiet"])
-  return merged.ok
-    ? `Merged into ${base}, and your local ${base} is up to date.`
-    : `Merged into ${base} on GitHub, but your local ${base} couldn't fast-forward. Pull it yourself.`
+export function startPull(force: boolean) {
+  const job = begin(PULL_JOB, "Pull", "pull")
+  void guarded(job, async () => {
+    step(job, "Confirm with Touch ID")
+    const result = await admin<Pulled>("GET", "/admin/systems?source", { reason: "pull design systems from the registry" })
+    if (!result.ok) throw new Error(result.data.error ?? `The registry answered ${result.status}.`)
+    const local = await keyInfo()
+    const shipped = readShipped()
+    const notes: string[] = []
+    for (const system of result.data.systems) {
+      if (!system.source || !idPattern.test(system.id)) continue
+      step(job, `Verifying ${system.name}`)
+      await verifyRelease(system.source.release, { source: system.source.files }, local)
+      const dir = path.join(systemsDir, system.id)
+      const incoming = system.source.files
+      if (existsSync(path.join(dir, "system.json"))) {
+        const mine = sourceFiles(system.id)
+        if (hashOf(mine) === hashOf(incoming)) {
+          writeShipped(system.id, { ...shipped[system.id], latest: system.latest, current: system.current, sourceHash: hashOf(incoming), at: Date.now() })
+          notes.push(`${system.name}: already up to date (v${system.current}).`)
+          continue
+        }
+        const record = shipped[system.id]
+        if (!force && (!record || hashOf(mine) !== record.sourceHash)) {
+          notes.push(`${system.name}: skipped, because it has saved changes that haven't shipped. Ship them, or pull with "Replace local changes".`)
+          continue
+        }
+        const backup = path.join(shipDir, "pull-backup", `${Date.now()}`, system.id)
+        mkdirSync(path.dirname(backup), { recursive: true })
+        cpSync(dir, backup, { recursive: true })
+        rmSync(dir, { recursive: true, force: true })
+      }
+      for (const [file, content] of Object.entries(incoming)) {
+        if (!/^(?:system\.json|entries\/[a-z0-9]+(?:-[a-z0-9]+)*\.json)$/.test(file)) throw new Error(`Refusing to write ${file}.`)
+        mkdirSync(path.dirname(path.join(dir, file)), { recursive: true })
+        writeFileSync(path.join(dir, file), content)
+      }
+      writeShipped(system.id, { latest: system.latest, current: system.current, sourceHash: hashOf(incoming), at: Date.now() })
+      notes.push(`${system.name}: pulled version ${system.current}.`)
+    }
+    finish(job, "shipped", { step: "Pulled", note: notes.join("\n") || "The registry has no design systems yet." })
+  })
+  return job
+}
+
+// ── Set up this Mac ─────────────────────────────────────────────────────────
+
+/**
+ * Makes this Mac's admin key and pins it in plugin/keys.json, so consumers
+ * trust its releases once that change is merged. Enrolling it with the
+ * Worker (ADMIN_KEYS) is a step in the Cloudflare dashboard.
+ */
+export async function setUpThisMac() {
+  const key = await createKey()
+  let pinned: { keys: unknown[] } = { keys: [] }
+  try {
+    pinned = JSON.parse(readFileSync(pinnedKeysFile, "utf8"))
+  } catch {}
+  pinned.keys = [...(pinned.keys ?? []), { keyId: key.keyId, publicKey: key.publicKey, addedAt: new Date().toISOString() }]
+  writeFileSync(pinnedKeysFile, JSON.stringify(pinned, null, 2) + "\n")
+  return { ...key, keyFile }
 }
