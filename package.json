@@ -15,7 +15,8 @@
     "registry:build": "node scripts/sync-theme.mjs && node scripts/build-catalog-index.mjs && npm run registry:systems",
     "registry:check": "node scripts/sync-theme.mjs --check && node scripts/build-catalog-index.mjs --check && npm run registry:systems && shadcn registry validate",
     "registry:systems": "node --experimental-strip-types --no-warnings scripts/build-systems.ts",
-    "up": "node scripts/start.mjs"
+    "up": "node scripts/start.mjs",
+    "audit:sizes": "node plugin/skills/unending-size-audit/scripts/audit-sizes.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
@@ -43,6 +44,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.4.6",
+    "playwright-core": "^1.65.1",
     "prettier": "^3.10.1",
     "prettier-plugin-tailwindcss": "^0.8.1",
     "tailwindcss": "^4",

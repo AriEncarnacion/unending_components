@@ -203,37 +203,62 @@ function FileToolbar({
     [actions]
   )
   const inline = ordered.filter((action) => !action.menuOnly)
+  const needsMenu = ordered.some((action) => action.menuOnly)
+  // Re-measure when the set of actions changes, not on every render: `actions`
+  // is often a fresh array. Label and font changes resize the ruler instead.
+  const layoutKey = ordered.map((action) => `${action.id}:${action.menuOnly ? 1 : 0}`).join("|")
 
-  // Fit as many inline actions as the space allows; the rest go in More.
+  // Two layers, after Primer's ActionBar and Fluent's overflow manager:
+  // - CSS guarantees nothing overlaps. Actions sit in a one-row, clipped,
+  //   wrapping strip, so one that doesn't fit drops onto a hidden second row.
+  //   That holds in the server HTML, before measuring, mid-resize and inside a
+  //   scaled or zooming parent.
+  // - JS picks which actions show, by priority, from layout sizes
+  //   (offsetWidth / clientWidth, which transforms don't change) and the
+  //   measured gap, padding and More button rather than fixed pixels.
   const slot = React.useRef<HTMLDivElement>(null)
-  const measure = React.useRef<HTMLDivElement>(null)
+  const strip = React.useRef<HTMLDivElement>(null)
+  const ruler = React.useRef<HTMLDivElement>(null)
   const [fit, setFit] = React.useState(inline.length)
   React.useLayoutEffect(() => {
-    const container = slot.current
-    const ruler = measure.current
-    if (!container || !ruler) return
+    const slotEl = slot.current
+    const stripEl = strip.current
+    const rulerEl = ruler.current
+    if (!slotEl || !stripEl || !rulerEl) return
+    const px = (value: string) => parseFloat(value) || 0
     const update = () => {
-      const widths = Array.from(ruler.children).map((child) => child.getBoundingClientRect().width)
-      const more = 32 + 4
-      const gap = 4
-      const available = container.clientWidth
-      const total = widths.reduce((sum, width) => sum + width + gap, 0)
-      const needsMenu = ordered.some((action) => action.menuOnly)
-      if (total <= available - (needsMenu ? more : 0)) return setFit(widths.length)
-      let used = more
-      let count = 0
-      for (const width of widths) {
-        if (used + width + gap > available) break
-        used += width + gap
-        count += 1
+      const items = Array.from(rulerEl.querySelectorAll<HTMLElement>("[data-measure=action]"))
+      const more = rulerEl.querySelector<HTMLElement>("[data-measure=more]")
+      // offsetWidth rounds to whole pixels; +1 keeps a rounded-down action
+      // from being clipped by the strip.
+      const widths = items.map((item) => item.offsetWidth + 1)
+      const stripStyle = getComputedStyle(stripEl)
+      const gap = px(stripStyle.columnGap)
+      const padding = px(stripStyle.paddingLeft) + px(stripStyle.paddingRight)
+      const slotGap = px(getComputedStyle(slotEl).columnGap)
+      const room = slotEl.clientWidth - padding
+      const fitIn = (space: number) => {
+        let used = 0
+        let count = 0
+        for (const width of widths) {
+          const next = used + (count ? gap : 0) + width
+          if (next > space) break
+          used = next
+          count += 1
+        }
+        return count
       }
-      setFit(count)
+      const moreSpace = room - (more?.offsetWidth ?? 0) - slotGap
+      const all = fitIn(needsMenu ? moreSpace : room)
+      setFit(all === widths.length ? all : fitIn(moreSpace))
     }
-    // Observing reports the first size right away, before paint.
+    // Observing reports the first size right away, before paint. The ruler
+    // too: its actions grow when the web font loads, with no resize of the slot.
     const observer = new ResizeObserver(update)
-    observer.observe(container)
+    observer.observe(slotEl)
+    observer.observe(rulerEl)
     return () => observer.disconnect()
-  }, [ordered])
+  }, [layoutKey, needsMenu])
 
   const visible = inline.slice(0, fit)
   const overflow = [...inline.slice(fit), ...ordered.filter((action) => action.menuOnly)]
@@ -245,7 +270,8 @@ function FileToolbar({
       data-slot="file-toolbar"
       aria-label={`${name} actions`}
       className={cn(
-        "flex h-12 w-full min-w-0 items-center gap-2 rounded-xl border bg-background px-2",
+        // A size container: below 20rem the primary action shows just its icon.
+        "@container/file-toolbar flex h-12 w-full min-w-0 items-center gap-2 rounded-xl border bg-background px-2",
         className
       )}
       {...props}
@@ -253,7 +279,8 @@ function FileToolbar({
       <span className="grid size-8 shrink-0 place-items-center text-muted-foreground [&_svg]:size-4">
         {icon ?? <FileIcon />}
       </span>
-      <div className="flex min-w-24 shrink flex-col justify-center leading-none">
+      {/* The name is the identifier: it truncates before anything overlaps. */}
+      <div className="flex min-w-12 shrink flex-col justify-center leading-none">
         <FileName name={name} onRename={onRename} />
         {status ? (
           <span className="px-1.5">
@@ -262,45 +289,58 @@ function FileToolbar({
         ) : null}
       </div>
 
-      <div ref={slot} className="relative flex min-w-0 flex-1 items-center justify-end gap-1">
-        {/* Off-screen copy of every inline action, measured to decide what fits. */}
+      {/* Always room for More, so it never lands on the name. */}
+      <div ref={slot} className="relative flex min-w-8 flex-1 items-center justify-end gap-1">
+        {/* Off-screen copy of every inline action and of More, measured to decide what fits. */}
         <div
-          ref={measure}
+          ref={ruler}
           aria-hidden="true"
           inert
-          className="pointer-events-none invisible absolute top-0 right-0 flex gap-1"
+          className="pointer-events-none invisible absolute top-0 right-0 flex"
         >
           {inline.map((action) => (
-            <Button key={action.id} variant={actionVariant} size="sm" tabIndex={-1}>
+            <Button key={action.id} data-measure="action" variant={actionVariant} size="sm" tabIndex={-1}>
               {action.icon ? <action.icon data-icon="inline-start" /> : null}
               {action.label}
             </Button>
           ))}
+          <Button data-measure="more" variant="ghost" size="icon-sm" tabIndex={-1}>
+            <EllipsisIcon />
+          </Button>
         </div>
 
-        {restoreOrder(visible).map((action) => (
-          <Tooltip key={action.id}>
-            <TooltipTrigger
-              render={
-                <ToolbarPrimitive.Button
-                  render={<Button variant={actionVariant} size="sm" />}
-                  disabled={action.disabled}
-                  onClick={action.onSelect}
-                  // Toolbar keeps disabled buttons focusable via aria-disabled.
-                  className={cn("aria-disabled:opacity-50", action.destructive && "text-destructive")}
-                />
-              }
-            >
-              {action.icon ? <action.icon data-icon="inline-start" /> : null}
-              {action.label}
-            </TooltipTrigger>
-            {action.shortcut ? (
-              <TooltipContent>
-                {action.label} <span className="ml-1 opacity-70">{action.shortcut}</span>
-              </TooltipContent>
-            ) : null}
-          </Tooltip>
-        ))}
+        {/* One clipped row: an action that doesn't fit wraps out of sight rather
+            than overlapping. Padded so focus rings aren't clipped; the second
+            row starts below the clip. */}
+        <div
+          ref={strip}
+          data-slot="file-toolbar-actions"
+          className="flex h-10 min-w-0 flex-1 flex-wrap content-start items-center justify-end gap-x-1 gap-y-3 overflow-hidden px-1 py-1.5"
+        >
+          {restoreOrder(visible).map((action) => (
+            <Tooltip key={action.id}>
+              <TooltipTrigger
+                render={
+                  <ToolbarPrimitive.Button
+                    render={<Button variant={actionVariant} size="sm" />}
+                    disabled={action.disabled}
+                    onClick={action.onSelect}
+                    // Toolbar keeps disabled buttons focusable via aria-disabled.
+                    className={cn("aria-disabled:opacity-50", action.destructive && "text-destructive")}
+                  />
+                }
+              >
+                {action.icon ? <action.icon data-icon="inline-start" /> : null}
+                {action.label}
+              </TooltipTrigger>
+              {action.shortcut ? (
+                <TooltipContent>
+                  {action.label} <span className="ml-1 opacity-70">{action.shortcut}</span>
+                </TooltipContent>
+              ) : null}
+            </Tooltip>
+          ))}
+        </div>
 
         {overflow.length > 0 ? (
           <DropdownMenu>
@@ -332,12 +372,13 @@ function FileToolbar({
         <>
           <Separator orientation="vertical" className="h-5" />
           <ToolbarPrimitive.Button
-            render={<Button size="sm" className="aria-disabled:opacity-50" />}
+            render={<Button size="sm" className="aria-disabled:opacity-50 @max-xs/file-toolbar:px-2" />}
             disabled={primaryAction.disabled}
             onClick={primaryAction.onSelect}
           >
             {primaryAction.icon ? <primaryAction.icon data-icon="inline-start" /> : null}
-            {primaryAction.label}
+            {/* Icon only in a narrow toolbar; the label stays for screen readers. */}
+            <span className={primaryAction.icon ? "@max-xs/file-toolbar:sr-only" : undefined}>{primaryAction.label}</span>
           </ToolbarPrimitive.Button>
         </>
       ) : null}

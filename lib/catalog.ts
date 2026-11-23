@@ -1,5 +1,3 @@
-import type * as React from "react"
-
 import registry from "@/registry.json"
 
 /** Where the registry lives. Entries install as `<REGISTRY_ADDRESS>/<name>`. */
@@ -50,17 +48,4 @@ export function getEntry(name: string) {
 /** In a project linked to a design system (/unending:setup), entries install tuned for it. */
 export function installCommand(name: string) {
   return `npx shadcn@4.23.0 add @unending/${name}`
-}
-
-type DemoModule = { default: React.ComponentType }
-
-/** Each entry's live states. Keep in step with registry.json. */
-export const demos: Record<string, () => Promise<DemoModule>> = {
-  "timeline-scrubber": () => import("@/registry/unending/timeline-scrubber/demo"),
-  "agent-chat": () => import("@/registry/unending/agent-chat/demo"),
-  "review-deck": () => import("@/registry/unending/review-deck/demo"),
-  "file-toolbar": () => import("@/registry/unending/file-toolbar/demo"),
-  "inspector-panel": () => import("@/registry/unending/inspector-panel/demo"),
-  "page-nav": () => import("@/registry/unending/page-nav/demo"),
-  "agent-trace": () => import("@/registry/unending/agent-trace/demo"),
 }
