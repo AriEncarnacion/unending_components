@@ -24,7 +24,8 @@ Then register it:
   - `files`.
   - `docs`: setup the consumer must do.
   - `meta: { entry: true, intent, status: "draft", origin }`.
-- Add the demo to the `demos` map in `lib/catalog.ts`.
+- Add the demo to the `demos` map in `components/showcase/demo-view.tsx`. It's a client module on purpose: imported by a server component, every demo's code would load on every page.
+- Set `meta.minWidth` (px) in `registry.json` if the entry can't work down to 320px, WCAG's reflow width, and say why in its README.
 - If the entry needs a full page, such as an app shell, add a frame under `app/[system]/(frame)/preview/[name]` and embed it with an iframe whose `src` is `/<system>/preview/<name>` (read `system` with `useParams`).
 
 ## Design systems
@@ -46,7 +47,10 @@ After building a new entry, you may propose a tuning per system: write `design-s
 ```bash
 npm run registry:check   # theme sync, catalog index, design-system builds, shadcn registry validate
 npm run typecheck && npm run lint
-npm run dev              # open /c/<name> and try every example in light and dark, and at phone width
+npm run dev              # open /c/<name> and try every example in light and dark; drag each Example frame narrower
+npm run audit:sizes -- --entry <name> --system <id> --schemes light,dark
 ```
+
+The size audit (the `unending-size-audit` skill, or `/unending:audit-sizes`) loads the entry at every device checkpoint from its minimum width to a 2560px window, as windows and as narrow containers, and must come back clean. Look at its screenshots too: it catches crushed, spilling, overlapping and clipped layout, but not truncation that leaves nothing useful.
 
 `npm run registry:build` regenerates the theme item and the plugin's catalog index, and checks every local design system. Run it and commit its output with the entry. Design systems are built and pushed to their own repos by Ship, never committed here.
