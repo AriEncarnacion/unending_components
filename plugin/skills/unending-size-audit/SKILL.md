@@ -54,6 +54,21 @@ node <this skill>/scripts/audit-sizes.mjs --url http://127.0.0.1:3000/path [--ro
 - It needs `playwright-core` in the app's devDependencies. Ask before installing it.
 - It uses the installed Google Chrome, so there's no browser download.
 
+**Options:**
+
+| Option | Default | What it does |
+| --- | --- | --- |
+| `--entry <name>` | | Catalog entry; loads `/<system>/frame/<name>`. |
+| `--url <url>` | | Any page instead (window sizes only). |
+| `--root <selector>` | `body` | What to check on a `--url` page. |
+| `--system <id>` | `stock` | Design system for `--entry`. |
+| `--base <url>` | `http://127.0.0.1:3000` | The dev server. |
+| `--modes window,container` | both for `--entry`, `window` for `--url` | Window sizes, narrow containers in a wide window, or both. |
+| `--schemes light[,dark]` | `light` | Colour schemes to check. |
+| `--min <px>` | the entry's `meta.minWidth`, else 320 | Smallest width. |
+| `--out <dir>` | a temp folder | Where `report.json` and the screenshots go. |
+| `--strict` | off | Exit 1 when any problem is found. |
+
 **Output:**
 
 - One line per check while it runs.
