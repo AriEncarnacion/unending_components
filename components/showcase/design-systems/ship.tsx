@@ -2,7 +2,6 @@
 
 import * as React from "react"
 import { CheckIcon, CircleIcon, DownloadIcon, ExternalLinkIcon, RocketIcon, TriangleAlertIcon, Undo2Icon } from "lucide-react"
-import { cn } from "cn"
 import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
@@ -216,11 +215,17 @@ function NewRepoFields({ id, owners, value, onChange }: { id: string; owners: st
   )
 }
 
-/** Ship in the sidebar: saves if needed, then builds, commits, tags and pushes to the system's repo. */
-export function ShipButton({ className }: { className?: string }) {
+/** Whether the active system is shipping right now. */
+export function useShipping() {
+  const ds = useDesignSystems()
+  const { state } = useShip()
+  return busy(state.jobs[ds.active?.system.id ?? ""])
+}
+
+/** Ship from the system menu: saves if needed, then builds, commits, tags and pushes to the system's repo. */
+export function ShipPanel() {
   const ds = useDesignSystems()
   const { state, ship, rollback } = useShip()
-  const [open, setOpen] = React.useState(false)
   const [review, setReview] = React.useState(false)
   const active = ds.active
   const id = active?.system.id ?? ""
@@ -247,78 +252,72 @@ export function ShipButton({ className }: { className?: string }) {
 
   const versions = status?.version ? Array.from({ length: status.version - 1 }, (_, i) => status.version! - 1 - i) : []
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger render={<Button size="sm" variant={busy(job) ? "outline" : "default"} className={cn(className)} />}>
-        {busy(job) ? <Spinner data-icon="inline-start" /> : <RocketIcon data-icon="inline-start" />}
-        {busy(job) ? "Shipping" : "Ship"}
-      </PopoverTrigger>
-      <PopoverContent align="start" className="w-80">
-        {!ready ? (
-          <p className="text-sm text-muted-foreground">Checking GitHub…</p>
-        ) : ready.problems.length ? (
-          <div className="flex flex-col gap-2 text-sm">
-            <span className="font-medium">Shipping isn&apos;t set up yet</span>
-            <ul className="flex list-disc flex-col gap-1 pl-4 text-xs text-muted-foreground">
-              {ready.problems.map((problem) => (
-                <li key={problem}>{problem}</li>
-              ))}
-            </ul>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-3">
-            {status?.repo ? (
-              <a
-                href={status.repo.url}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center gap-1.5 text-xs text-muted-foreground underline-offset-2 hover:underline"
-              >
-                <span className="truncate font-mono">{status.repo.repo}</span>
-                <Badge variant="outline">{status.repo.visibility}</Badge>
-                <ExternalLinkIcon className="size-3 shrink-0" />
-              </a>
-            ) : null}
-            <p className="text-xs text-muted-foreground text-pretty">
-              {firstShip
-                ? `Ship creates ${active.system.name}'s own GitHub repo, builds the system into it as a shadcn registry and tags v1.`
-                : `Ship builds ${active.system.name}, commits it to its repo and tags the next version.`}
-              {status?.status === "shipped" && !dirty ? ` v${status.version} matches what's saved here.` : ""}
-              {status?.status === "behind" ? " The catalog's entries changed since it last shipped, so shipping again rebuilds them." : ""}
-            </p>
-            {job ? <ShipProgress job={job} onRetry={(options) => void go(options)} /> : null}
-            {!busy(job) ? (
-              <div className="flex flex-col gap-3 border-t pt-3">
-                {firstShip ? <NewRepoFields id={id} owners={owners} value={target} onChange={setCreate} /> : null}
-                <div className="flex items-center justify-between gap-2">
-                  <Label htmlFor="ship-review" className="text-xs">
-                    Review first with Claude
-                  </Label>
-                  <Switch id="ship-review" checked={review} onCheckedChange={setReview} disabled={!ready.claude} />
-                </div>
-                <Button size="sm" disabled={firstShip && (!target.owner || !target.name)} onClick={() => void go()}>
-                  <RocketIcon data-icon="inline-start" />
-                  {firstShip ? "Create the repo and ship v1" : `Ship ${active.system.name}`}
-                </Button>
-                {versions.length ? (
-                  <div className="flex flex-col gap-1.5 border-t pt-3">
-                    <span className="text-xs text-muted-foreground text-pretty">
-                      Roll back: ship v{status!.version! + 1} with an earlier version&apos;s files. Apps pinned to a version keep it.
-                    </span>
-                    <div className="flex flex-wrap gap-1">
-                      {versions.slice(0, 8).map((version) => (
-                        <Button key={version} size="xs" variant="outline" onClick={() => void rollback(id, version)}>
-                          <Undo2Icon data-icon="inline-start" />v{version}
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
+    <>
+      {!ready ? (
+        <p className="text-sm text-muted-foreground">Checking GitHub…</p>
+      ) : ready.problems.length ? (
+        <div className="flex flex-col gap-2 text-sm">
+          <span className="font-medium">Shipping isn&apos;t set up yet</span>
+          <ul className="flex list-disc flex-col gap-1 pl-4 text-xs text-muted-foreground">
+            {ready.problems.map((problem) => (
+              <li key={problem}>{problem}</li>
+            ))}
+          </ul>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {status?.repo ? (
+            <a
+              href={status.repo.url}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-1.5 text-xs text-muted-foreground underline-offset-2 hover:underline"
+            >
+              <span className="truncate font-mono">{status.repo.repo}</span>
+              <Badge variant="outline">{status.repo.visibility}</Badge>
+              <ExternalLinkIcon className="size-3 shrink-0" />
+            </a>
+          ) : null}
+          <p className="text-xs text-muted-foreground text-pretty">
+            {firstShip
+              ? `Ship creates ${active.system.name}'s own GitHub repo, builds the system into it as a shadcn registry and tags v1.`
+              : `Ship builds ${active.system.name}, commits it to its repo and tags the next version.`}
+            {status?.status === "shipped" && !dirty ? ` v${status.version} matches what's saved here.` : ""}
+            {status?.status === "behind" ? " The catalog's entries changed since it last shipped, so shipping again rebuilds them." : ""}
+          </p>
+          {job ? <ShipProgress job={job} onRetry={(options) => void go(options)} /> : null}
+          {!busy(job) ? (
+            <div className="flex flex-col gap-3 border-t pt-3">
+              {firstShip ? <NewRepoFields id={id} owners={owners} value={target} onChange={setCreate} /> : null}
+              <div className="flex items-center justify-between gap-2">
+                <Label htmlFor="ship-review" className="text-xs">
+                  Review first with Claude
+                </Label>
+                <Switch id="ship-review" checked={review} onCheckedChange={setReview} disabled={!ready.claude} />
               </div>
-            ) : null}
-          </div>
-        )}
-      </PopoverContent>
-    </Popover>
+              <Button size="sm" disabled={firstShip && (!target.owner || !target.name)} onClick={() => void go()}>
+                <RocketIcon data-icon="inline-start" />
+                {firstShip ? "Create the repo and ship v1" : `Ship ${active.system.name}`}
+              </Button>
+              {versions.length ? (
+                <div className="flex flex-col gap-1.5 border-t pt-3">
+                  <span className="text-xs text-muted-foreground text-pretty">
+                    Roll back: ship v{status!.version! + 1} with an earlier version&apos;s files. Apps pinned to a version keep it.
+                  </span>
+                  <div className="flex flex-wrap gap-1">
+                    {versions.slice(0, 8).map((version) => (
+                      <Button key={version} size="xs" variant="outline" onClick={() => void rollback(id, version)}>
+                        <Undo2Icon data-icon="inline-start" />v{version}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      )}
+    </>
   )
 }
 

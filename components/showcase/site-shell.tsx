@@ -3,13 +3,12 @@
 import * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutGridIcon, MoonIcon, PaletteIcon, SunIcon, SwatchBookIcon } from "lucide-react"
+import { LayoutGridIcon, PaletteIcon, SwatchBookIcon } from "lucide-react"
 import { cn } from "cn"
-import { useTheme } from "next-themes"
 
-import { Button } from "@/components/ui/button"
 import { useDesignSystems } from "@/components/showcase/design-systems/provider"
-import { SystemHeader } from "@/components/showcase/design-systems/switcher"
+import { BackButton, SystemMenu, SystemName } from "@/components/showcase/design-systems/switcher"
+import { UnendingMark } from "@/components/showcase/unending-mark"
 import {
   Sidebar,
   SidebarContent,
@@ -28,21 +27,6 @@ import {
 
 type NavEntry = { name: string; title: string; status: string }
 
-function ThemeToggle() {
-  const { resolvedTheme, setTheme } = useTheme()
-  return (
-    <Button
-      variant="ghost"
-      size="icon-sm"
-      aria-label="Toggle dark mode"
-      onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-    >
-      <SunIcon className="dark:hidden" />
-      <MoonIcon className="hidden dark:block" />
-    </Button>
-  )
-}
-
 export function SiteShell({
   entries,
   children,
@@ -56,19 +40,14 @@ export function SiteShell({
   return (
     <SidebarProvider>
       <Sidebar>
-        <SidebarHeader>
-          <Link href="/" className="px-2 py-1.5 font-semibold tracking-tight" aria-label="All design systems">
-            Unending
-            <span className="ml-1.5 font-mono text-xs font-normal text-muted-foreground">
-              catalog
-            </span>
-          </Link>
-          <SystemHeader />
+        <SidebarHeader className="flex-row items-center gap-2 px-4 pt-4 pb-2">
+          <BackButton />
+          <UnendingMark className="text-foreground" />
         </SidebarHeader>
         <SidebarContent>
-          <SidebarGroup>
+          <SidebarGroup className="px-4">
             <SidebarGroupContent>
-              <SidebarMenu>
+              <SidebarMenu className="gap-1">
                 <SidebarMenuItem>
                   <SidebarMenuButton render={<Link href={href()} />} isActive={pathname === "/"}>
                     <LayoutGridIcon />
@@ -90,10 +69,10 @@ export function SiteShell({
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
-          <SidebarGroup>
+          <SidebarGroup className="px-4">
             <SidebarGroupLabel>Entries</SidebarGroupLabel>
             <SidebarGroupContent>
-              <SidebarMenu>
+              <SidebarMenu className="gap-1">
                 {entries.map((entry) => (
                   <SidebarMenuItem key={entry.name}>
                     <SidebarMenuButton
@@ -115,9 +94,12 @@ export function SiteShell({
         </SidebarContent>
       </Sidebar>
       <SidebarInset className="min-w-0">
-        <header className="sticky top-0 z-10 flex h-12 items-center justify-between gap-2 border-b bg-background/90 px-3 backdrop-blur">
+        <header className="sticky top-0 z-10 grid h-12 grid-cols-[1fr_minmax(0,auto)_1fr] items-center gap-2 border-b bg-background/90 px-3 backdrop-blur">
           <SidebarTrigger />
-          <ThemeToggle />
+          <SystemName />
+          <div className="justify-self-end">
+            <SystemMenu />
+          </div>
         </header>
         <div
           className={cn(

@@ -31,7 +31,7 @@ export const colorGroups: ColorGroup[] = [
     roles: [
       { token: "primary", on: "primary-foreground", use: "The main action, selection, the playhead." },
       { token: "secondary", on: "secondary-foreground", use: "Alternative actions next to a primary one." },
-      { token: "accent", on: "accent-foreground", use: "Hover and highlight backgrounds in menus and lists." },
+      { token: "accent", on: "accent-foreground", use: "The highlighted item in dropdown menus, context menus and select lists, as you hover or arrow through them. Buttons don't use it; their hover is muted." },
     ],
   },
   {

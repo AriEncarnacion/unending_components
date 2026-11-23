@@ -3,23 +3,10 @@
 import { cn } from "cn"
 
 import { leading, tracking, typeSteps, weights } from "@/lib/tokens"
+import { tunedScale } from "@/lib/design-systems/type-scale"
 import { useTokens } from "@/components/showcase/token-overrides"
 
 import { Readout, Section, Subsection } from "./section"
-
-// Tailwind v4 defaults: size and line height for each text step.
-const scale: Record<string, [string, string]> = {
-  xs: ["12px", "16px"],
-  sm: ["14px", "20px"],
-  base: ["16px", "24px"],
-  lg: ["18px", "28px"],
-  xl: ["20px", "28px"],
-  "2xl": ["24px", "32px"],
-  "3xl": ["30px", "36px"],
-  "4xl": ["36px", "40px"],
-  "5xl": ["48px", "1"],
-  "6xl": ["60px", "1"],
-}
 
 const usage: Record<string, string> = {
   xs: "Badges, meta, kbd, code blocks (sm)",
@@ -59,6 +46,12 @@ function FamilyCard({ role, family, label }: { role: "sans" | "heading" | "mono"
 
 export function TypeSection() {
   const { theme, fonts } = useTokens()
+  const scale = tunedScale({ "--text-sm": theme["--text-sm"], "--leading-body": theme["--leading-body"] || undefined })
+  const px = (n: number) => `${Number(n.toFixed(1))}px`
+  const readout = (step: string) => {
+    const { rem, leading: lh } = scale[step]
+    return `${px(rem * 16)} / ${lh === 1 ? "1" : px(rem * 16 * lh)}`
+  }
   const pick = (role: "sans" | "heading" | "mono") =>
     fonts[role].find((font) => font.family === theme[`--font-${role}`]) ?? fonts[role][0]
 
@@ -66,7 +59,7 @@ export function TypeSection() {
     <Section
       id="type"
       title="Type"
-      description="Three families and Tailwind's default size scale. shadcn sets UI text at text-sm, so most of the interface lives in three sizes: xs, sm and base."
+      description="Three families and Tailwind's size scale. shadcn sets UI text at text-sm, so most of the interface lives in three sizes: xs, sm and base. Size in the tuner sets text-sm and the scale follows it."
     >
       <Subsection title="Families">
         <div className="grid gap-4 lg:grid-cols-3">
@@ -82,7 +75,7 @@ export function TypeSection() {
             <div key={step.name} className="grid items-baseline gap-x-6 gap-y-1 px-4 py-3 sm:grid-cols-[7rem_minmax(0,1fr)]">
               <div className="flex flex-col">
                 <code className="font-mono text-xs">{step.className}</code>
-                <Readout value={`${scale[step.name][0]} / ${scale[step.name][1]}`} />
+                <Readout value={readout(step.name)} />
               </div>
               <div className="flex min-w-0 flex-col gap-0.5">
                 <span className={cn(step.className, "truncate font-medium tracking-tight")}>
@@ -92,6 +85,22 @@ export function TypeSection() {
               </div>
             </div>
           ))}
+        </div>
+      </Subsection>
+
+      <Subsection
+        title="Flow"
+        description={`Space between paragraphs of running text: space-y-flow on the parent, or mt-flow. ${theme["--spacing-flow"]}, so it follows the text size.`}
+      >
+        <div className="max-w-prose space-y-flow rounded-xl border p-5 text-sm">
+          <p>
+            Mateo’s override splits his shift in two. He hands off to Alex at 23:00 and is back on at 03:07, so the
+            rotation continues without a gap.
+          </p>
+          <p>
+            If Alex can’t cover the middle, the shift stays unassigned and the schedule flags it before the handoff. Assign
+            someone or accept the gap.
+          </p>
         </div>
       </Subsection>
 

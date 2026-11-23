@@ -18,6 +18,7 @@ import ts from "typescript"
 import { readCommitted, systemsDir } from "../lib/design-systems/load.ts"
 import { fontById, stockFonts } from "../lib/design-systems/fonts.ts"
 import { paletteVars, scopedSelectors, scopedVars, toVar } from "../lib/design-systems/resolve.ts"
+import { typeVars } from "../lib/design-systems/type-scale.ts"
 import { parsePaletteRef, validate, type Knob, type SystemFile, type Working } from "../lib/design-systems/schema.ts"
 
 const root = process.cwd()
@@ -198,6 +199,8 @@ function themeFor(working: Working | null) {
   const t = system?.tokens.theme ?? {}
   if (t["--radius"]) light.radius = t["--radius"]
   if (t["--spacing"]) theme.spacing = t["--spacing"]
+  for (const [name, value] of Object.entries(typeVars(t))) theme[name.slice(2)] = value
+  if (t["--spacing-flow"]) theme["spacing-flow"] = t["--spacing-flow"]
   if (t["--default-transition-duration"]) theme["default-transition-duration"] = t["--default-transition-duration"]
   if (t["--default-transition-timing-function"])
     theme["default-transition-timing-function"] = t["--default-transition-timing-function"]
@@ -257,6 +260,7 @@ function designRules(working: Working | null) {
     "",
     "- Radius comes from the `rounded-*` scale (it derives from `--radius`). Spacing uses the Tailwind scale and `gap`.",
     "- Fonts: `font-sans` for UI, `font-heading` for headings, `font-mono` for code, times and IDs.",
+    "- Text sizes come from the `text-*` scale; UI text is `text-sm`. Separate paragraphs of running text with `space-y-flow` (or `mt-flow`), not a fixed margin.",
     "- Motion is short (120–300ms), eased out, and has a reason. Respect `prefers-reduced-motion`.",
     "",
     "## Components",

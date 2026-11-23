@@ -22,7 +22,11 @@ const dark = block(".dark")
 // with the theme: the fonts (--font-heading has to point at its own variable
 // for the heading font to apply) and the status colours the catalog adds.
 const added = /^(font-|color-(success|warning|info)$)/
-const theme = Object.fromEntries(Object.entries(block("@theme inline")).filter(([name]) => added.test(name)))
+// Plus the catalog's own theme variables, like --spacing-flow.
+const theme = {
+  ...block("@theme"),
+  ...Object.fromEntries(Object.entries(block("@theme inline")).filter(([name]) => added.test(name))),
+}
 const cssVars = { theme, light, dark }
 
 const item = registry.items.find((entry) => entry.name === "theme")

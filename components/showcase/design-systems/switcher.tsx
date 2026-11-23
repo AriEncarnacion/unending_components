@@ -2,8 +2,10 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { ChevronLeftIcon, LockIcon } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { ChevronLeftIcon, LockIcon, MenuIcon, MonitorIcon, MoonIcon, RocketIcon, SaveIcon, SunIcon } from "lucide-react"
 import { cn } from "cn"
+import { useTheme } from "next-themes"
 import { toast } from "sonner"
 
 import {
@@ -18,14 +20,26 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { Spinner } from "@/components/ui/spinner"
 import { clearLegacyOverrides, readLegacyOverrides, toStored, type FontOption } from "@/components/showcase/token-overrides"
 import { semanticScales, type KeyColor, type Scale } from "@/lib/palette"
 
 import { describeChanges } from "./changes"
 import { useDesignSystems } from "./provider"
-import { ShipButton, useShip } from "./ship"
+import { ShipPanel, useShip, useShipping } from "./ship"
 
 export function UnsavedDot({ className }: { className?: string }) {
   return <span aria-label="Unsaved changes" className={cn("size-1.5 shrink-0 rounded-full bg-primary", className)} />
@@ -193,7 +207,7 @@ function SaveDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open
     setSaving(false)
     if (result.ok) {
       onOpenChange(false)
-      toast(`Saved ${active.system.name}`, { description: `Wrote design-systems/${active.system.id}/. Ship puts it in its GitHub repo.` })
+      toast(`Saved ${active.system.name}`)
     } else setProblem(result)
   }
 
@@ -202,7 +216,6 @@ function SaveDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Save {active.system.name}</DialogTitle>
-          <DialogDescription>Writes design-systems/{active.system.id}/ on this Mac. Ship puts it in its GitHub repo.</DialogDescription>
         </DialogHeader>
         <div className="flex max-h-[50vh] flex-col gap-3 overflow-y-auto text-sm">
           {groups.length ? (
@@ -356,12 +369,148 @@ export function MigrationDialog({ fonts, onCreated }: { fonts: FontOption[]; onC
   )
 }
 
-/** The top of the sidebar inside a system: back to all systems, its name, Save and Ship. */
-export function SystemHeader() {
+// The parts of the Navigation API the leave guard uses; TypeScript's DOM types don't include it yet.
+type TraverseEvent = Event & {
+  navigationType: "push" | "replace" | "reload" | "traverse"
+  cancelable: boolean
+  destination: { url: string; key: string }
+}
+type NavigationApi = EventTarget & { traverseTo: (key: string) => unknown }
+
+/**
+ * Back to all design systems. With unsaved changes, leaving asks to save or
+ * discard them first: from this button, and from the browser's back and
+ * forward buttons where the browser lets a page cancel them (Navigation API).
+ */
+export function BackButton() {
   const ds = useDesignSystems()
+  const router = useRouter()
+  // Where to go once the changes are saved or discarded.
+  const [leave, setLeave] = React.useState<(() => void) | null>(null)
+  const [saving, setSaving] = React.useState(false)
+  const active = ds.active
+  const dirty = !!ds.systems.find((s) => s.id === ds.activeId)?.dirty
+  const neverSaved = active ? !ds.committedFor(active.system.id) : false
+  const guard = React.useRef({ dirty, id: ds.activeId, bypass: false })
+  React.useEffect(() => {
+    guard.current.dirty = dirty
+    guard.current.id = ds.activeId
+  }, [dirty, ds.activeId])
+
+  React.useEffect(() => {
+    const navigation = (window as Window & { navigation?: NavigationApi }).navigation
+    if (!navigation) return
+    const onNavigate = (event: Event) => {
+      const e = event as TraverseEvent
+      const { dirty, id, bypass } = guard.current
+      if (bypass || !dirty || !e.cancelable || e.navigationType !== "traverse") return
+      const path = new URL(e.destination.url).pathname
+      if (path === `/${id}` || path.startsWith(`/${id}/`)) return
+      e.preventDefault()
+      const key = e.destination.key
+      setLeave(() => () => navigation.traverseTo(key))
+    }
+    navigation.addEventListener("navigate", onNavigate)
+    return () => navigation.removeEventListener("navigate", onNavigate)
+  }, [])
+
+  const go = () => {
+    const next = leave
+    setLeave(null)
+    guard.current.bypass = true
+    next?.()
+    // Back on the page (a failed traverse, or this component staying mounted), guard again.
+    window.setTimeout(() => (guard.current.bypass = false), 1000)
+  }
+
+  const save = async () => {
+    setSaving(true)
+    const result = await ds.save()
+    setSaving(false)
+    if (!result.ok) {
+      toast.error(result.error, {
+        description: result.conflict
+          ? "Something else changed these files. Open Save from the menu to choose what to keep."
+          : result.issues?.slice(0, 3).map((i) => `${i.where}: ${i.message}`).join("\n"),
+      })
+      return
+    }
+    go()
+  }
+
+  return (
+    <>
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        aria-label="All design systems"
+        nativeButton={false}
+        render={<Link href="/" />}
+        onClick={(event) => {
+          if (!dirty || !active) return
+          event.preventDefault()
+          setLeave(() => () => router.push("/"))
+        }}
+      >
+        <ChevronLeftIcon />
+      </Button>
+      {active ? (
+        <AlertDialog open={!!leave} onOpenChange={(open) => !open && setLeave(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Save changes to {active.system.name}?</AlertDialogTitle>
+              <AlertDialogDescription>
+                {neverSaved
+                  ? `${active.system.name} has never been saved. Discarding removes it.`
+                  : "Discarding undoes every change since the last save."}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <Button
+                variant="destructive"
+                disabled={saving}
+                onClick={() => {
+                  ds.discard(active.system.id)
+                  go()
+                }}
+              >
+                Discard changes
+              </Button>
+              <Button disabled={saving} onClick={() => void save()}>
+                {saving ? "Saving…" : "Save"}
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      ) : null}
+    </>
+  )
+}
+
+/** The open system's name, centered in the top bar. */
+export function SystemName() {
+  const ds = useDesignSystems()
+  const dirty = !!ds.systems.find((s) => s.id === ds.activeId)?.dirty
+  return (
+    <div className="flex min-w-0 items-center justify-center gap-1.5">
+      {ds.activeId === "stock" ? <LockIcon className="size-3.5 shrink-0 text-muted-foreground" /> : null}
+      <span className="min-w-0 truncate font-heading text-sm font-semibold">
+        {ds.restored ? (ds.active?.system.name ?? (ds.activeId === "stock" ? "shadcn base" : "Not found")) : "…"}
+      </span>
+      {dirty ? <UnsavedDot /> : null}
+    </div>
+  )
+}
+
+/** The top-right menu inside a system: Save, Ship and the theme. */
+export function SystemMenu() {
+  const ds = useDesignSystems()
+  const { theme, setTheme } = useTheme()
+  const shipping = useShipping()
   const [saveOpen, setSaveOpen] = React.useState(0)
-  const summary = ds.systems.find((s) => s.id === ds.activeId)
-  const dirty = !!summary?.dirty
+  const [shipOpen, setShipOpen] = React.useState(false)
+  const dirty = !!ds.systems.find((s) => s.id === ds.activeId)?.dirty
   const lastPrompt = React.useRef(0)
 
   // Editing the read-only shadcn base points you home to start a system.
@@ -377,30 +526,60 @@ export function SystemHeader() {
   }, [setReadOnlyHandler])
 
   return (
-    <div className="flex flex-col gap-2">
-      <Link
-        href="/"
-        className="flex items-center gap-1 rounded-md px-1 text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
-      >
-        <ChevronLeftIcon className="size-3.5" />
-        All design systems
-      </Link>
-      <div className="flex items-center gap-1.5 px-1">
-        {ds.activeId === "stock" ? <LockIcon className="size-3.5 text-muted-foreground" /> : null}
-        <span className="min-w-0 truncate font-heading text-sm font-semibold">
-          {ds.restored ? (ds.active?.system.name ?? (ds.activeId === "stock" ? "shadcn base" : "Not found")) : "…"}
-        </span>
-        {dirty ? <UnsavedDot /> : null}
-      </div>
-      {ds.active ? (
-        <div className="flex gap-1.5">
-          <Button size="sm" variant="outline" className="flex-1" disabled={!dirty} onClick={() => setSaveOpen((n) => n + 1)}>
-            Save
-          </Button>
-          <ShipButton className="flex-1" />
-        </div>
-      ) : null}
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" aria-label="Menu" className="relative" />}>
+          {shipping ? <Spinner /> : <MenuIcon />}
+          {dirty && !shipping ? <UnsavedDot className="absolute top-1 right-1" /> : null}
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-44">
+          {ds.active ? (
+            <>
+              <DropdownMenuGroup>
+                <DropdownMenuItem disabled={!dirty} onClick={() => setSaveOpen((n) => n + 1)}>
+                  <SaveIcon />
+                  Save
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setShipOpen(true)}>
+                  {shipping ? <Spinner /> : <RocketIcon />}
+                  {shipping ? "Shipping…" : "Ship…"}
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
+              <DropdownMenuSeparator />
+            </>
+          ) : null}
+          <DropdownMenuGroup>
+            <DropdownMenuLabel>Theme</DropdownMenuLabel>
+            <DropdownMenuRadioGroup value={theme ?? "system"} onValueChange={(value) => setTheme(value as string)}>
+              <DropdownMenuRadioItem value="light">
+                <SunIcon />
+                Light
+              </DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="dark">
+                <MoonIcon />
+                Dark
+              </DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="system">
+                <MonitorIcon />
+                System
+              </DropdownMenuRadioItem>
+            </DropdownMenuRadioGroup>
+          </DropdownMenuGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
       <SaveDialog key={saveOpen} open={saveOpen > 0} onOpenChange={(open) => !open && setSaveOpen(0)} />
-    </div>
+      {ds.active ? (
+        <Dialog open={shipOpen} onOpenChange={setShipOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Ship {ds.active.system.name}</DialogTitle>
+            </DialogHeader>
+            <div className="flex flex-col gap-3 text-sm">
+              <ShipPanel />
+            </div>
+          </DialogContent>
+        </Dialog>
+      ) : null}
+    </>
   )
 }

@@ -5,6 +5,7 @@ import * as React from "react"
 import { stockPalette, useDesignSystems } from "@/components/showcase/design-systems/provider"
 import { paletteVars, resolveValue, scopedCss, type Palette } from "@/lib/design-systems/resolve"
 import { paletteRef } from "@/lib/design-systems/schema"
+import { stockFlow, stockTextSm, typeVars } from "@/lib/design-systems/type-scale"
 import { deltaE, parseColor } from "@/lib/palette"
 import { baseTokens } from "@/lib/tokens"
 import { EntryTuningContext } from "@/lib/tuning"
@@ -18,6 +19,9 @@ export type ThemeVar =
   | "--font-sans"
   | "--font-heading"
   | "--font-mono"
+  | "--text-sm"
+  | "--leading-body"
+  | "--spacing-flow"
   | "--default-transition-duration"
   | "--default-transition-timing-function"
 
@@ -33,6 +37,10 @@ export const themeDefaults: Record<ThemeVar, string> = {
   "--font-sans": "",
   "--font-heading": "",
   "--font-mono": "",
+  "--text-sm": stockTextSm,
+  // Stock has no single body line height: each text step keeps Tailwind's own.
+  "--leading-body": "",
+  "--spacing-flow": stockFlow,
   "--default-transition-duration": "150ms",
   "--default-transition-timing-function": "cubic-bezier(0.4, 0, 0.2, 1)",
 }
@@ -131,7 +139,7 @@ export function TokenOverridesProvider({
     active ? block("html:root", paletteVars(palette)) : "",
     block("html:root:not(.dark)", overrides.light),
     block(".dark", overrides.dark),
-    block("html:root", overrides.theme),
+    block("html:root", { ...overrides.theme, ...typeVars(overrides.theme) }),
     block(".ds-light", light),
     block(".ds-dark", dark),
     ...Object.entries(active?.entries ?? {}).map(([entry, tuning]) => scopedCss(entry, tuning, palette)),
@@ -241,6 +249,12 @@ export function exportCss(context: Pick<Context, "light" | "dark" | "theme" | "f
     block(".dark", dark),
   ]
   const extras: string[] = []
+  const typeTuned = {
+    "--text-sm": theme["--text-sm"] !== themeDefaults["--text-sm"] ? theme["--text-sm"] : undefined,
+    "--leading-body": theme["--leading-body"] || undefined,
+  }
+  for (const [name, value] of Object.entries(typeVars(typeTuned))) extras.push(`  ${name}: ${value};`)
+  if (theme["--spacing-flow"] !== themeDefaults["--spacing-flow"]) extras.push(`  --spacing-flow: ${theme["--spacing-flow"]};`)
   if (theme["--spacing"] !== themeDefaults["--spacing"])
     extras.push(`  --spacing: ${theme["--spacing"]};`)
   if (theme["--default-transition-duration"] !== themeDefaults["--default-transition-duration"])

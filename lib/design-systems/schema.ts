@@ -4,6 +4,7 @@
 // here carry their .ts extension.
 import { STEPS, type KeyColor, type Scale } from "../palette.ts"
 import { fontById } from "./fonts.ts"
+import { toRem } from "./type-scale.ts"
 
 export type SystemId = string
 export type EntryName = string
@@ -16,6 +17,9 @@ export type ThemeVar =
   | "--font-sans"
   | "--font-heading"
   | "--font-mono"
+  | "--text-sm"
+  | "--leading-body"
+  | "--spacing-flow"
   | "--default-transition-duration"
   | "--default-transition-timing-function"
 
@@ -28,6 +32,9 @@ export const themeVars: ThemeVar[] = [
   "--font-sans",
   "--font-heading",
   "--font-mono",
+  "--text-sm",
+  "--leading-body",
+  "--spacing-flow",
   "--default-transition-duration",
   "--default-transition-timing-function",
 ]
@@ -243,6 +250,16 @@ export function themeValueProblem(name: string, value: string): string | null {
     case "--radius":
     case "--spacing":
       return valueGrammar.length.test(value) ? null : `${name} must be a length like 0.5rem or 8px`
+    case "--text-sm":
+      return /^\d*\.?\d+(?:px|rem)$/.test(value) && toRem(value) >= 0.5 && toRem(value) <= 1.5
+        ? null
+        : `${name} must be a size between 8px and 24px, like 0.875rem or 14px`
+    case "--leading-body":
+      return /^\d*\.?\d+$/.test(value) && parseFloat(value) >= 1 && parseFloat(value) <= 3
+        ? null
+        : `${name} must be a line height between 1 and 3, like 1.5`
+    case "--spacing-flow":
+      return valueGrammar.length.test(value) ? null : `${name} must be a length like 1.25em`
     case "--default-transition-duration":
       return valueGrammar.duration.test(value) ? null : `${name} must be a duration like 150ms`
     case "--default-transition-timing-function":

@@ -10,6 +10,7 @@
       "description": "The catalog's design tokens and fonts (DM Sans body, Manrope headings, Geist Mono). Every entry depends on it so installs carry the same flavor.",
       "cssVars": {
         "theme": {
+          "spacing-flow": "1.25em",
           "font-heading": "var(--font-heading)",
           "font-sans": "var(--font-sans)",
           "color-success": "var(--success)",
