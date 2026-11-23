@@ -22,6 +22,8 @@ import type { Working } from "@/lib/design-systems/schema"
 import { toCss } from "@/lib/palette"
 import { baseTokens } from "@/lib/tokens"
 
+import { UnendingMark } from "@/components/showcase/unending-mark"
+
 import { useDesignSystems } from "./provider"
 import { PullButton, ShipBadge, ShipProvider } from "./ship"
 import { DeleteDialog, MigrationDialog, NewSystemDialog, RenameDialog, UnsavedDot } from "./switcher"
@@ -177,9 +179,8 @@ export function SystemsHome({ fonts }: { fonts: FontOption[] }) {
       <div className="min-h-svh bg-background">
         <header className="sticky top-0 z-10 border-b bg-background/90 backdrop-blur">
           <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-3 px-4 sm:px-8">
-            <span className="font-semibold tracking-tight">
-              Unending
-              <span className="ml-1.5 font-mono text-xs font-normal text-muted-foreground">catalog</span>
+            <span role="img" aria-label="Unending">
+              <UnendingMark className="text-foreground" />
             </span>
             <div className="flex items-center gap-1.5">
               <ThemeToggle />
