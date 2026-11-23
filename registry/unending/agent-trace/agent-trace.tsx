@@ -72,7 +72,6 @@ function formatDuration(ms: number) {
   return `${Math.floor(seconds / 60)}m ${seconds % 60}s`
 }
 
-// A shared one-second clock, only running while a step is live.
 let second = Date.now()
 function subscribeSecond(notify: () => void) {
   second = Date.now()
@@ -121,8 +120,6 @@ function StepRow({ step, now }: { step: AgentStep; now: number | null }) {
   const traceStatus =
     step.status === "running" ? "running" : step.status === "error" ? "error" : step.status === "pending" ? "pending" : undefined
   const line = (
-    // Pending steps keep full opacity: their icon already sets them apart, and
-    // stock's 60% fade drops muted text below 4.5:1.
     <TraceLine status={traceStatus} className="data-[status=pending]:opacity-100">
       <TraceIcon>
         {step.status === "running" ? (

@@ -140,8 +140,6 @@ function stepLabel(color: Oklch, mode: LabelMode, vision: Vision) {
   return `${wcag(seen, WHITE).toFixed(1)} / ${wcag(seen, BLACK).toFixed(1)}`
 }
 
-// ── Export ──────────────────────────────────────────────────────────────────
-
 function exportText(
   state: PaletteState,
   format: "css" | "tailwind" | "json",
@@ -246,8 +244,6 @@ function ExportDialog({ state }: { state: PaletteState }) {
   )
 }
 
-// ── Add a scale ─────────────────────────────────────────────────────────────
-
 function AddScale({
   api,
   reference,
@@ -330,8 +326,6 @@ function AddScale({
     </Popover>
   )
 }
-
-// ── Key colours and theme tokens ────────────────────────────────────────────
 
 function NearestHint({ color, scales }: { color: Oklch; scales: Scale[] }) {
   const [best] = nearestSteps(color, scales, 1)
@@ -469,8 +463,6 @@ function TokenCard({
   )
 }
 
-// ── Grid ────────────────────────────────────────────────────────────────────
-
 function ScaleGrid({
   scales,
   target,
@@ -494,7 +486,6 @@ function ScaleGrid({
 }) {
   const grid = React.useRef<HTMLDivElement>(null)
   const columns = "grid-cols-[8.5rem_repeat(12,minmax(4rem,1fr))]"
-  // Fixed surfaces get fixed ink; on the page the theme decides.
   const ink =
     surface === "white"
       ? { color: "#171717", background: "#ffffff" }
@@ -705,8 +696,6 @@ function ScaleGrid({
   )
 }
 
-// ── Page ────────────────────────────────────────────────────────────────────
-
 export function PalettePage() {
   const api = usePalette()
   const { state, update, undo, redo, canUndo, canRedo } = api
@@ -760,7 +749,6 @@ export function PalettePage() {
     const onKey = (event: KeyboardEvent) => {
       if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "z")
         return
-      // Text fields keep their own undo; sliders, buttons and swatches don't.
       const el = event.target as HTMLElement | null
       const typing =
         el instanceof HTMLInputElement
@@ -775,8 +763,6 @@ export function PalettePage() {
     return () => window.removeEventListener("keydown", onKey)
   }, [undo, redo])
 
-  // The palette lives in this browser, so render once it's restored: no flash
-  // of the seed colours and no server/client float drift in the charts.
   if (!api.restored)
     return (
       <div className="flex flex-col gap-4" aria-busy="true">

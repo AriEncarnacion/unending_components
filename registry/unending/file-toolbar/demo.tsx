@@ -20,7 +20,6 @@ import {
   type FileStatus,
 } from "@/registry/unending/file-toolbar/file-toolbar"
 
-
 function useLog() {
   const [last, setLast] = React.useState("Nothing yet")
   return { last, log: (what: string) => () => setLast(what) }
@@ -39,7 +38,6 @@ function actionsFor(log: (what: string) => () => void): FileAction[] {
 
 function Resizable() {
   const [name, setName] = React.useState("coverage-q4-rotations.csv")
-  // Two minutes before the page loaded, so the relative time reads naturally.
   const [savedAt] = React.useState(() => Date.now() - 2 * 60_000)
   const { last, log } = useLog()
   return (

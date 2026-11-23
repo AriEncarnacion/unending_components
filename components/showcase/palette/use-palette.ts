@@ -7,13 +7,8 @@ import type { KeyColor, Scale } from "@/lib/palette"
 
 export type PaletteState = { scales: Scale[]; keys: KeyColor[] }
 
-/** The palette Stock shows, and that new systems start from. */
 export const seedState: PaletteState = stockPalette
 
-/**
- * The active design system's palette. Edits go into that system's draft and
- * share its undo history; on Stock they ask to duplicate first.
- */
 export function usePalette() {
   const ds = useDesignSystems()
   const state: PaletteState = ds.active ? ds.active.system.palette : stockPalette
@@ -41,8 +36,6 @@ export function usePalette() {
 }
 
 export type PaletteApi = ReturnType<typeof usePalette>
-
-// Small immutable helpers used by the page and the editor.
 
 export function mapScale(state: PaletteState, id: string, fn: (scale: Scale) => Scale): PaletteState {
   return { ...state, scales: state.scales.map((scale) => (scale.id === id ? fn(scale) : scale)) }

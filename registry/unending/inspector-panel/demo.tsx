@@ -44,7 +44,6 @@ function ShiftInspector({ initial, idPrefix }: { initial: Shift[]; idPrefix: str
   const [draft, setDraft] = React.useState(initial)
   const dirty = JSON.stringify(saved) !== JSON.stringify(draft)
 
-  // For each field, one shared value, or undefined when the selection disagrees.
   const shared = <K extends keyof Shift>(key: K) =>
     draft.every((shift) => shift[key] === draft[0]?.[key]) ? draft[0]?.[key] : undefined
   const set = <K extends keyof Shift>(key: K, value: Shift[K]) =>

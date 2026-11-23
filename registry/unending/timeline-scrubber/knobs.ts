@@ -1,6 +1,5 @@
 import type { Knob } from "@/lib/design-systems/schema"
 
-/** What a design system can tune in the timeline scrubber. Defaults match its useEntryTuning call. */
 export const knobs: Knob[] = [
   { key: "spanDays", label: "Visible span", kind: "number", default: 14, min: 3, max: 42, step: 1, unit: "days", description: "How much time the track shows when the caller doesn't set span." },
   { key: "glideMinMs", label: "Glide, short", kind: "duration", default: 320, min: 120, max: 800, step: 10, unit: "ms", description: "Duration of the shortest animated move." },

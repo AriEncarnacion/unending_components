@@ -1,6 +1,3 @@
-// Copies the CSS variables in app/globals.css into the registry's `theme` item,
-// so the showcase stylesheet stays the single source of truth for tokens.
-// Run with: npm run registry:theme (or --check to fail when they differ).
 import { readFileSync, writeFileSync } from "node:fs"
 
 const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8")
@@ -18,11 +15,7 @@ function block(selector) {
 
 const light = block(":root")
 const dark = block(".dark")
-// From @theme inline, only the mappings shadcn init doesn't already make travel
-// with the theme: the fonts (--font-heading has to point at its own variable
-// for the heading font to apply) and the status colours the catalog adds.
 const added = /^(font-|color-(success|warning|info)$)/
-// Plus the catalog's own theme variables, like --spacing-flow.
 const theme = {
   ...block("@theme"),
   ...Object.fromEntries(Object.entries(block("@theme inline")).filter(([name]) => added.test(name))),

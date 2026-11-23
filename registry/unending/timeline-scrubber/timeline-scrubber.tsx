@@ -66,8 +66,6 @@ export type TimelineScrubberProps = Omit<
   ) => React.ReactNode
 }
 
-// Tones keep the muted fill and mark the leading edge, so they stay legible
-// however close the chart colors sit to the background.
 const toneClass: Record<NonNullable<TimelineEvent["tone"]>, string> = {
   1: "shadow-[inset_3px_0_0_var(--color-chart-1)]",
   2: "shadow-[inset_3px_0_0_var(--color-chart-2)]",
@@ -148,8 +146,6 @@ export function withOverrides(
   return result.sort((a, b) => a.start - b.start)
 }
 
-// A shared 15-second clock. The server snapshot is null so the first client
-// render matches the server, and the real time arrives right after hydration.
 let clockTime = Date.now()
 function subscribeClock(notify: () => void) {
   clockTime = Date.now()
@@ -223,8 +219,6 @@ function TimelineScrubber({
     defaultValue
   )
   const center = value ?? internal ?? now ?? 0
-  // The latest playhead for animation frames and pointer handlers, which run
-  // between renders. moveTo also writes it directly while animating.
   const current = React.useRef(center)
   React.useLayoutEffect(() => {
     current.current = center
@@ -311,7 +305,6 @@ function TimelineScrubber({
 
   React.useEffect(() => stop, [stop])
 
-  // Horizontal wheel and trackpad scrolling, settling on an edge when it stops.
   React.useEffect(() => {
     const element = track.current
     if (!element) return
@@ -377,7 +370,6 @@ function TimelineScrubber({
     setDragging(false)
     const velocity =
       performance.now() - active.lastTime < 80 ? active.velocity : 0
-    // A flick carries on, but never further than one visible span.
     const carry = Math.max(-span, Math.min(span, velocity * flickCarry))
     animateTo(snap(current.current + carry))
   }
@@ -440,7 +432,6 @@ function TimelineScrubber({
     }
   }
 
-  // The day ruler sits under the first lane, as in a two-lane rota.
   type Row = { kind: "lane"; lane: TimelineLane } | { kind: "ticks" }
   const rows: Row[] = lanes.flatMap((lane, index): Row[] =>
     index === 0
@@ -584,12 +575,10 @@ function TimelineScrubber({
               </div>
             )
           })}
-          {/* playhead: the moment being inspected */}
           <span
             aria-hidden="true"
             className="pointer-events-none absolute -inset-y-1 left-1/2 w-0.5 -translate-x-1/2 bg-primary"
           />
-          {/* the real present, once it has moved off the playhead */}
           {showNowMarker && (
             <span
               aria-hidden="true"
@@ -600,8 +589,6 @@ function TimelineScrubber({
         </div>
       </div>
 
-      {/* Measured in hours from now, so assistive tech reads "+36 hours" rather
-          than a timestamp; the stock Slider has no custom value text. */}
       <Slider
         aria-label={`Hours from now. Showing ${longFormat.format(center)}`}
         min={Math.round((min - now) / HOUR)}

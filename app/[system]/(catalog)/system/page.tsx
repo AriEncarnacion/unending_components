@@ -9,7 +9,6 @@ export const metadata: Metadata = {
 }
 
 export default function Page() {
-  // ?entry=<name> opens that entry beside the system.
   return (
     <Suspense fallback={<SystemPage />}>
       <SystemPageWithParams />

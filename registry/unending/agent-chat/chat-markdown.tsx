@@ -98,7 +98,6 @@ const components: Components = {
   code: ({ node, className, children, ...props }) => {
     const match = /language-([\w-]+)/.exec(className ?? "")
     const value = String(children ?? "")
-    // Fenced blocks carry a language class or span several lines.
     if (match || value.includes("\n"))
       return <MarkdownCode language={match?.[1] ?? ""} value={value} />
     return (

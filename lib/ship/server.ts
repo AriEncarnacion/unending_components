@@ -1,16 +1,3 @@
-// Ships a design system to its own GitHub repo. Each design-systems/<id>/ is a
-// clone of that repo: system.json and entries/ are its source, and Ship builds
-// a shadcn GitHub registry next to them (registry.json plus baked files).
-//
-//   Ship       build, optionally review with Claude, commit, tag vN, push
-//   Roll back  a new version vN+1 whose files equal an earlier vK
-//   Pull       clone or fast-forward every repo tagged unending-design-system
-//
-// Everything goes through your own git and `gh` login. The repo's visibility
-// is the system's visibility; change it on GitHub. Apps install
-// owner/repo/<item>#vN, so a version never changes once tagged.
-//
-// Dev server only. Jobs live in memory and .generated/ship/jobs.json.
 import { execFile } from "node:child_process"
 import { createHash } from "node:crypto"
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
@@ -25,7 +12,6 @@ const root = process.cwd()
 const shipDir = path.join(root, ".generated/ship")
 const jobsFile = path.join(shipDir, "jobs.json")
 
-/** The topic Ship puts on every system repo, so Pull can find them. */
 export const TOPIC = "unending-design-system"
 export const ownerPattern = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/
 export const repoPattern = /^[A-Za-z0-9._-]{1,100}$/
@@ -72,11 +58,8 @@ function persist() {
   writeFileSync(jobsFile, JSON.stringify([...store.jobs.values()], null, 2))
 }
 
-// ── git and gh ──────────────────────────────────────────────────────────────
-
 const env = { ...process.env, GIT_TERMINAL_PROMPT: "0" }
 
-/** git, authenticated through `gh` for this command only (your global git config is untouched). */
 async function git(dir: string, args: string[], timeout = 120_000) {
   const { stdout } = await run("git", ["-c", "credential.helper=", "-c", "credential.helper=!gh auth git-credential", ...args], {
     cwd: dir,
@@ -106,7 +89,6 @@ const dirOf = (id: string) => {
   return path.join(systemsDir, id)
 }
 
-/** owner/repo of a system's clone, if it has one. */
 async function repoOf(dir: string) {
   if (!existsSync(path.join(dir, ".git"))) return undefined
   const url = await gitOk(dir, ["remote", "get-url", "origin"])
@@ -114,20 +96,16 @@ async function repoOf(dir: string) {
   return url.ok && match ? match[1] : undefined
 }
 
-/** The highest vN tag in a clone (0 if none). */
 async function latestTag(dir: string) {
   const tags = (await gitOk(dir, ["tag", "-l", "v*"])).out.split("\n")
   return Math.max(0, ...tags.map((t) => (/^v([1-9]\d*)$/.exec(t.trim()) ? Number(t.trim().slice(1)) : 0)))
 }
-
-// ── What a system is made of ────────────────────────────────────────────────
 
 const hashOf = (files: Record<string, string>) =>
   createHash("sha256")
     .update(JSON.stringify(Object.entries(files).sort(([a], [b]) => (a < b ? -1 : 1))))
     .digest("hex")
 
-/** Everything besides the system's own files that goes into its build: entries, the theme, the build script. */
 function inputsHash() {
   const registry = JSON.parse(readFileSync(path.join(root, "registry.json"), "utf8")) as { items: { files?: { path: string }[] }[] }
   const files: Record<string, string> = {}
@@ -142,18 +120,13 @@ function inputsHash() {
 
 const buildInfoFile = (dir: string) => path.join(dir, ".unending/build.json")
 
-// ── Readiness and status ────────────────────────────────────────────────────
-
 export type Preflight = {
   ok: boolean
   problems: string[]
-  /** Your GitHub login and the orgs you belong to: where a new system's repo can go. */
   owners: string[]
-  /** Whether `claude` is on the PATH, for the optional review. */
   claude: boolean
 }
 
-/** What Ship needs, cached for 30 seconds: checking it spawns processes. */
 export function preflight(fresh = false): Promise<Preflight> {
   if (fresh || !store.preflight || Date.now() - store.preflight.at > 30_000) store.preflight = { at: Date.now(), value: checkPreflight() }
   return store.preflight.value
@@ -178,7 +151,6 @@ async function checkPreflight(): Promise<Preflight> {
 
 export type RepoInfo = { repo: string; url: string; visibility: "public" | "private" | "internal" | "unknown" }
 
-/** A repo's visibility and URL, cached for five minutes. */
 async function repoInfo(repo: string): Promise<RepoInfo> {
   const cached = store.repos.get(repo)
   if (cached && Date.now() - cached.at < 300_000) return cached.info
@@ -191,12 +163,6 @@ async function repoInfo(repo: string): Promise<RepoInfo> {
   return info
 }
 
-/**
- * shipped:   the latest tag has what's saved here
- * changed:   saved here since the latest tag
- * behind:    unchanged here, but the catalog's entries changed since it shipped
- * unshipped: no repo yet
- */
 export type ShipStatus = "shipped" | "changed" | "behind" | "unshipped"
 export type SystemStatus = { status: ShipStatus; version?: number; repo?: RepoInfo }
 
@@ -225,8 +191,6 @@ export async function statuses(ids: string[]): Promise<Record<string, SystemStat
 export function jobs() {
   return Object.fromEntries(store.jobs)
 }
-
-// ── Jobs ────────────────────────────────────────────────────────────────────
 
 function begin(systemId: string, systemName: string, action: ShipJob["action"]) {
   const current = store.jobs.get(systemId)
@@ -257,16 +221,12 @@ async function guarded(job: ShipJob, work: () => Promise<void>) {
   }
 }
 
-/** Fetches the remote and refuses to go on if it has commits this clone doesn't. */
 async function upToDate(dir: string) {
   await git(dir, ["fetch", "--quiet", "--tags", "origin"])
   const behind = await gitOk(dir, ["rev-list", "--count", "HEAD..origin/main"])
   if (behind.ok && Number(behind.out) > 0) throw new Error("The repo has changes this Mac doesn't. Pull first, then try again.")
 }
 
-// ── Ship ────────────────────────────────────────────────────────────────────
-
-/** Where a system's first ship creates its repo. Ignored once it has one. */
 export type NewRepo = { owner: string; name: string; visibility: "private" | "public" }
 export type ShipOptions = { create?: NewRepo; review?: boolean }
 
@@ -324,7 +284,6 @@ async function ship(job: ShipJob, options: ShipOptions) {
   }
 
   const latest = creating ? 0 : await latestTag(dir)
-  // Rebuild at the latest version first: if nothing changes, there's nothing to ship.
   if (latest) {
     step(job, `Checking for changes since v${latest}`)
     const problem = await build(dir, id, repo!, latest)
@@ -369,7 +328,6 @@ async function ship(job: ShipJob, options: ShipOptions) {
   step(job, `Pushing v${version}`)
   const pushed = await gitOk(dir, ["push", "--quiet", "--atomic", "origin", "HEAD:refs/heads/main", `refs/tags/v${version}`])
   if (!pushed.ok) {
-    // Leave nothing half-made locally: the next ship can start clean.
     await gitOk(dir, ["tag", "-d", `v${version}`])
     await gitOk(dir, ["reset", "--quiet", "--soft", "HEAD~1"])
     throw new Error(/rejected|non-fast-forward|fetch first/.test(pushed.err ?? "") ? "The repo moved on. Pull first, then ship again." : pushed.err)
@@ -384,7 +342,6 @@ async function ship(job: ShipJob, options: ShipOptions) {
   })
 }
 
-/** A local Claude review of what's about to ship. Uses your Claude login; no tools. */
 async function review(job: ShipJob, diff: string): Promise<{ block: boolean; text: string }> {
   const instructions = [
     `You review a design-system registry about to be published as "${job.systemName}". Consumers install these shadcn registry items with the shadcn CLI, so their code and CSS run in other people's apps.`,
@@ -392,8 +349,6 @@ async function review(job: ShipJob, diff: string): Promise<{ block: boolean; tex
     "Look for: code that does anything beyond UI (network calls, storage, eval, reading env or cookies), new or unexpected npm dependencies, CSS that could break out of its rule, accessibility or contrast regressions, and obvious mistakes.",
     "Reply with a first line that is exactly VERDICT: PASS or VERDICT: BLOCK (BLOCK only for something that must be fixed before publishing), then the findings as short bullet points.",
   ].join("\n")
-  // A bare session: no tools, MCP servers, skills, settings or project files,
-  // so a review costs cents and the diff can't make it do anything.
   const args = [
     "-p",
     "Review this diff.",
@@ -427,9 +382,6 @@ async function review(job: ShipJob, diff: string): Promise<{ block: boolean; tex
   }
 }
 
-// ── Roll back ───────────────────────────────────────────────────────────────
-
-/** Ships a new version whose files equal vK's. Tags never move, so apps pinned to any version keep it. */
 export function startRollback(systemId: string, systemName: string, target: number) {
   const job = begin(systemId, systemName, "rollback")
   void guarded(job, async () => {
@@ -464,15 +416,8 @@ export function startRollback(systemId: string, systemName: string, target: numb
   return job
 }
 
-// ── Pull ────────────────────────────────────────────────────────────────────
-
 export const PULL_JOB = "__pull"
 
-/**
- * Finds every repo tagged unending-design-system that you or your orgs own,
- * clones the ones missing here and fast-forwards the rest. A system with
- * changes that haven't shipped is left alone.
- */
 export function startPull() {
   const job = begin(PULL_JOB, "Pull", "pull")
   void guarded(job, async () => {

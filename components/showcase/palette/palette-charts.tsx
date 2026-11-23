@@ -19,8 +19,6 @@ import {
   type Vision,
 } from "@/lib/palette"
 
-// ── Curves ──────────────────────────────────────────────────────────────────
-
 type Channel = "l" | "c" | "h"
 
 const W = 360
@@ -72,7 +70,6 @@ function CurveChart({
   const range = drag?.range ?? live
   const y = (v: number) => PAD.top + (1 - (v - range.min) / (range.max - range.min)) * (H - PAD.top - PAD.bottom)
   const active = scales.find((s) => s.id === selected)
-  // Draw the selected scale last so it sits on top.
   const ordered = [...scales.filter((s) => s.id !== selected), ...(active ? [active] : [])]
   const path = (values: number[]) => values.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ")
   const valueAt = (clientY: number) => {
@@ -166,7 +163,6 @@ function CurveChart({
                     aria-valuemax={channel === "l" ? 1 : channel === "c" ? 0.37 : 360}
                     aria-valuenow={Number(c[channel].toFixed(3))}
                     onPointerDown={(event) => {
-                      // Keep text from selecting, but still take focus for arrow keys.
                       event.preventDefault()
                       event.currentTarget.focus()
                       svg.current?.setPointerCapture(event.pointerId)
@@ -245,8 +241,6 @@ export function Curves({
     </div>
   )
 }
-
-// ── Contrast matrix ─────────────────────────────────────────────────────────
 
 type Method = "wcag" | "apca"
 const thresholds: Record<Method, { value: number; label: string }[]> = {
@@ -344,9 +338,6 @@ export function ContrastMatrix({ scale, vision }: { scale: Scale; vision: Vision
   )
 }
 
-// ── In use ──────────────────────────────────────────────────────────────────
-
-/** A small screen painted only from one scale, step by step, the Radix way. */
 export function UsagePreview({ scale, vision }: { scale: Scale; vision: Vision }) {
   const s = (i: number) => paint(scale.steps[i - 1], vision)
   const ink9 = inkOn(perceived(scale.steps[8], vision))

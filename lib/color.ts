@@ -1,10 +1,7 @@
-// Colour helpers for the design system page. Browser-only where noted.
-
-export type RGBA = { r: number; g: number; b: number; a: number } // r,g,b 0-255, a 0-1
+export type RGBA = { r: number; g: number; b: number; a: number }
 
 let context: CanvasRenderingContext2D | null | undefined
 
-/** Resolves any CSS colour (oklch, hex, rgb…) to sRGB through a canvas. Browser only. */
 export function toRGBA(value: string): RGBA | null {
   if (typeof document === "undefined") return null
   if (context === undefined) {
@@ -21,7 +18,6 @@ export function toRGBA(value: string): RGBA | null {
   return { r, g, b, a: a / 255 }
 }
 
-/** Lays a translucent colour over an opaque one. */
 export function over(top: RGBA, bottom: RGBA): RGBA {
   const mix = (t: number, b: number) => Math.round(t * top.a + b * (1 - top.a))
   return { r: mix(top.r, bottom.r), g: mix(top.g, bottom.g), b: mix(top.b, bottom.b), a: 1 }
@@ -36,7 +32,6 @@ export function luminance({ r, g, b }: RGBA) {
   return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b)
 }
 
-/** WCAG 2 contrast ratio. A translucent foreground is laid over the background first. */
 export function contrast(foreground: RGBA, background: RGBA) {
   const fg = foreground.a < 1 ? over(foreground, background) : foreground
   const [hi, lo] = [luminance(fg), luminance(background)].sort((a, b) => b - a)
@@ -54,7 +49,6 @@ export function toHex({ r, g, b }: RGBA) {
   return `#${[r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("")}`
 }
 
-/** sRGB hex to an oklch() string, rounded the way shadcn writes tokens. */
 export function hexToOklch(hex: string) {
   const value = hex.replace("#", "")
   const [r, g, b] = [0, 2, 4].map((i) => channel(parseInt(value.slice(i, i + 2), 16)))
@@ -70,7 +64,6 @@ export function hexToOklch(hex: string) {
   return `oklch(${round(L, 3)} ${round(C, 3)} ${round(H, 2)})`
 }
 
-/** Splits "oklch(0.7 0.1 250 / 40%)" into parts, or null for other formats. */
 export function parseOklch(value: string) {
   const match = value
     .trim()

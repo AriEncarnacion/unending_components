@@ -1,5 +1,3 @@
-// Installs dependencies, starts the dev server and opens the home page once it's ready.
-// Run with: npm run up. Ctrl+C stops the server.
 import { spawn, spawnSync } from "node:child_process"
 
 const npm = process.platform === "win32" ? "npm.cmd" : "npm"
@@ -13,7 +11,6 @@ let opened = false
 dev.stdout.on("data", (chunk) => {
   process.stdout.write(chunk)
   if (opened) return
-  // Next prints "- Local: http://127.0.0.1:3000" (the port moves if 3000 is taken).
   const url = chunk.toString().match(/Local:\s+(http:\/\/\S+)/)?.[1]
   if (!url) return
   opened = true

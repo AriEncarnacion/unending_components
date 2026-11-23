@@ -128,7 +128,6 @@ function PageNav({
     .filter((section) => section.items.length > 0)
 
   return (
-    // The wrapper only marks the entry for design-system tuning; display: contents keeps it out of layout.
     <div data-slot="page-nav" className="contents">
       <Sidebar collapsible={collapsible} {...props}>
         {header || showFilter ? (
@@ -170,7 +169,6 @@ function PageNav({
                   {section.items.map((item) =>
                     item.items?.length ? (
                       <Collapsible
-                        // Remount when filtering starts or stops, so groups open to show matches.
                         key={`${item.href}:${needle ? "filtering" : "browsing"}`}
                         defaultOpen={
                           Boolean(needle) || contains(item, currentPath)

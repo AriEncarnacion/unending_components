@@ -87,6 +87,7 @@ The plugin's skills also check the catalog for a matching entry before Claude bu
   - Use semantic tokens, never raw colours.
   - Don't edit `components/ui/*`.
   - Never commit `design-systems/`.
+  - No code comments. Record decisions in `docs/adr/`. Run `/delete-comment` to clear the comments still left.
   
   `CLAUDE.md` has the rest.
 - `main` takes changes by PR only, and CI must pass.

@@ -1,21 +1,3 @@
-// Finds layout that has broken at the current size. Injected into the page
-// under test as one function expression, so it must stay self-contained.
-//
-// Reports four kinds of problem:
-// - crushed: text wrapping to a few characters per line ("Anyt / hing")
-// - spill:   content poking out of the box it's drawn in
-// - overlap: a control on top of another control or of text, or text on text
-// - clipped: text cut off by hidden overflow with no ellipsis
-//
-// Hidden content is skipped: display none, visibility hidden, opacity 0,
-// aria-hidden or inert (measuring copies), screen-reader-only text, and
-// anything clipped out of view by a scrolling or clipping ancestor. Mark a
-// subtree data-layout-check="ignore" to skip it on purpose.
-//
-// Each problem's element gets data-layout-issue="<kind>", so a screenshot
-// taken afterwards can outline it.
-//
-// The file is one bare function expression: the audit evaluates it in the page.
 // eslint-disable-next-line @typescript-eslint/no-unused-expressions
 ;(function checkLayout(root) {
   const INTERACTIVE =
@@ -34,7 +16,6 @@
     return true
   }
 
-  // What's actually visible: the box clipped by every scrolling or clipping ancestor.
   const visibleBox = (element) => {
     const r = element.getBoundingClientRect()
     let box = { left: r.left, right: r.right, top: r.top, bottom: r.bottom }
@@ -60,7 +41,6 @@
       .join("")
       .trim()
 
-  // Lines of an element's own text, from where the browser actually broke them.
   const textLines = (element) => {
     const tops = new Set()
     for (const node of element.childNodes) {
@@ -76,9 +56,6 @@
     Math.min(a.right, b.right) - Math.max(a.left, b.left) > 3 &&
     Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 3
 
-  // The boxes an element actually paints. An inline element that wraps has one
-  // per line; its bounding box spans both lines and would "overlap" its
-  // neighbours. Each is clipped to what's visible.
   const fragments = (element) => {
     const clip = boxes.get(element)
     const rects = style(element).display === "inline" ? [...element.getClientRects()] : [element.getBoundingClientRect()]
@@ -102,7 +79,6 @@
     return `${slot || element.tagName.toLowerCase()}${text ? ` "${text}"` : ""}`
   }
 
-  // A short CSS path, so a finding can be traced back to the code.
   const path = (element) => {
     const parts = []
     for (let node = element; node && node !== root && parts.length < 6; node = node.parentElement) {

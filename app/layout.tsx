@@ -24,7 +24,6 @@ export default function RootLayout({
       suppressHydrationWarning
       className={cn("antialiased font-sans", ...fontVariables)}
     >
-      {/* Scrollbars without a track background, everywhere (scrollbar-color is inherited). */}
       <body className="[scrollbar-color:color-mix(in_oklch,var(--muted-foreground)_40%,transparent)_transparent]">
         <ThemeProvider>
           <TooltipProvider>{children}</TooltipProvider>

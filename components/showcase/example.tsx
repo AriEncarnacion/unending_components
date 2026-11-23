@@ -8,11 +8,6 @@ import { Button } from "@/components/ui/button"
 const MIN = 200
 const STEP = 16
 
-/**
- * One live state of a catalog entry, framed for the showcase. Drag the
- * frame's right edge (or use the arrow keys on it) to try the example in a
- * narrower container; double-click or Reset to go back to full width.
- */
 export function Example({
   title,
   description,

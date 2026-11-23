@@ -11,10 +11,6 @@ import { EntryPagePane } from "@/components/showcase/system/entry-pane"
 import { DemoView } from "@/components/showcase/demo-view"
 import { getEntry } from "@/lib/catalog"
 
-// No generateStaticParams: it only lists entry names, not systems, so nothing
-// was prerendered, and each page got cached on first visit. That froze the
-// layout's read of the design systems on disk in production.
-
 export async function generateMetadata({
   params,
 }: {

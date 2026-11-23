@@ -1,6 +1,5 @@
 import { cn } from "cn"
 
-// Four plus signs, the second lifted: the Unending motif.
 const pluses = [
   { x: 8, y: 17 },
   { x: 30, y: 9 },

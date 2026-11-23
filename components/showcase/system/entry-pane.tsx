@@ -11,11 +11,6 @@ import { EntryTuner } from "@/components/showcase/design-systems/entry-tuner"
 import { Pane, PaneButton, useTunerOpen } from "@/components/showcase/pane"
 import { getEntry } from "@/lib/catalog"
 
-/**
- * An entry opened beside the design system: its demo, with its tuner floating
- * over the corner, so a token change on the left and a knob change here both
- * show at once.
- */
 export function EntryPane({ name, onClose }: { name: string; onClose: () => void }) {
   const { href } = useDesignSystems()
   const entry = getEntry(name)
@@ -59,7 +54,6 @@ export function EntryPane({ name, onClose }: { name: string; onClose: () => void
   )
 }
 
-/** An entry's own page (/c/<name>), as one pane with the same floating tuner. */
 export function EntryPagePane({
   name,
   title,

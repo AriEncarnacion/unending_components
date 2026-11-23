@@ -1,6 +1,3 @@
-// Each entry's declared knobs (registry/unending/<name>/knobs.ts), for the
-// tuning inspector and the Save route's validation. Keep in step with the
-// entries that call useEntryTuning; registry:check verifies it.
 import type { Knob } from "@/lib/design-systems/schema"
 import { knobs as agentChat } from "@/registry/unending/agent-chat/knobs"
 import { knobs as agentTrace } from "@/registry/unending/agent-trace/knobs"

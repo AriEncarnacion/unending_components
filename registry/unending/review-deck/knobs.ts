@@ -1,6 +1,5 @@
 import type { Knob } from "@/lib/design-systems/schema"
 
-/** What a design system can tune in the review deck. Defaults match its useEntryTuning call. */
 export const knobs: Knob[] = [
   { key: "flightMs", label: "Card flight", kind: "duration", default: 180, min: 80, max: 600, step: 10, unit: "ms", description: "How long a decided card takes to fly off." },
   { key: "flightEase", label: "Flight easing", kind: "easing", default: "cubic-bezier(0.2, 0, 0, 1)" },

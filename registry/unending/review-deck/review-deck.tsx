@@ -16,11 +16,6 @@ import {
 import { Kbd } from "@/components/ui/kbd"
 import { useEntryTuning } from "@/lib/tuning"
 
-/* ------------------------------------------------------------------ */
-/* Gesture: distance commits, direction comes from cones with neutral */
-/* gaps. Screen space: +x is right, +y is down.                        */
-/* ------------------------------------------------------------------ */
-
 export type ReviewDirection = "left" | "down" | "right"
 
 export type ReviewGesture = {
@@ -62,10 +57,6 @@ const unit: Record<ReviewDirection, { x: number; y: number }> = {
   right: { x: 1, y: 0 },
   down: { x: 0, y: 1 },
 }
-
-/* ------------------------------------------------------------------ */
-/* Actions, copy and decisions                                         */
-/* ------------------------------------------------------------------ */
 
 export type DecisionValue = boolean | null
 
@@ -251,7 +242,6 @@ function ReviewDeck<T, A extends string = DefaultActionId>({
   const [error, setError] = React.useState<string>()
   const [announcement, setAnnouncement] = React.useState("")
 
-  // A new first item ends the previous decision's lock.
   const [seenId, setSeenId] = React.useState(activeId)
   if (seenId !== activeId) {
     setSeenId(activeId)
@@ -350,7 +340,6 @@ function ReviewDeck<T, A extends string = DefaultActionId>({
 
   const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (locked || event.button !== 0 || isInteractive(event.target)) return
-    // Touch and pen drag only from the grip, so card content keeps native scrolling.
     if (event.pointerType !== "mouse" && !(event.target as HTMLElement).closest("[data-review-grip]"))
       return
     event.currentTarget.setPointerCapture(event.pointerId)
@@ -405,8 +394,6 @@ function ReviewDeck<T, A extends string = DefaultActionId>({
       onKeyDown={onKeyDown}
       data-slot="review-deck"
       className={cn(
-        // A size container: the deck lays itself out by its own width, so it
-        // holds up in a sidebar, drawer or pane, not just a narrow window.
         "@container/review-deck flex min-h-[30rem] flex-col gap-4 rounded-xl outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
         className
       )}
@@ -536,12 +523,9 @@ function ReviewDeck<T, A extends string = DefaultActionId>({
         </p>
       ) : null}
 
-      {/* Narrow: the two sideways actions share a row and the down action sits
-          below them, which keeps each button where its drag goes. */}
       <div className="grid grid-cols-2 gap-2 @md/review-deck:grid-cols-3">
         {(["left", "down", "right"] as const).map((direction) => {
           const action = byDirection(direction)
-          // Holds the middle slot in the three-column row; not needed when narrow.
           if (!action) return <span key={direction} className="hidden @md/review-deck:block" />
           return (
             <Button

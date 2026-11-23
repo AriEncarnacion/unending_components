@@ -14,7 +14,6 @@ import { buildPreset, recipes, type PresetResult, type Recipe } from "@/lib/them
 
 import { usePalette } from "./use-palette"
 
-/** A tiny screen painted with one scheme of a preset. */
 function PresetPreview({ colors, label, className }: { colors: Record<string, string>; label: string; className?: string }) {
   const c = (token: string) => colors[token]
   return (
@@ -148,7 +147,6 @@ function PresetRow({ recipe, result, compact }: { recipe: Recipe; result: Preset
   )
 }
 
-/** Theme presets built from the current palette, with their contrast checks. */
 export function PresetList({ compact, className }: { compact?: boolean; className?: string }) {
   const { state } = usePalette()
   const results = React.useMemo(() => recipes.map((recipe) => ({ recipe, result: buildPreset(recipe, state.scales) })), [state.scales])
@@ -161,7 +159,6 @@ export function PresetList({ compact, className }: { compact?: boolean; classNam
   )
 }
 
-/** Every visible palette step as a one-click value for a theme token. */
 export function PaletteSwatches({ token, scheme }: { token: string; scheme: "light" | "dark" }) {
   const tokens = useTokens()
   const { state } = usePalette()

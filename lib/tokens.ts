@@ -1,6 +1,5 @@
 import registry from "@/registry.json"
 
-/** The catalog theme as committed: the `theme` item, synced from app/globals.css. */
 const themeItem = registry.items.find((item) => item.name === "theme") as {
   cssVars: { theme: Record<string, string>; light: Record<string, string>; dark: Record<string, string> }
 }
@@ -8,7 +7,6 @@ export const baseTokens = themeItem.cssVars
 
 export type ColorRole = {
   token: string
-  /** The token drawn on top of it, if it has one. */
   on?: string
   use: string
 }
@@ -145,10 +143,8 @@ export const breakpoints = [
 export type Easing = {
   name: string
   value: string
-  /** A Tailwind token or default that uses it, if any. */
   token?: string
   use: string
-  /** In the current system, or an option to consider. */
   inSystem: boolean
 }
 
@@ -181,7 +177,6 @@ export const durations = [
   { ms: 500, where: "Page-level or decorative motion" },
 ] as const
 
-/** Samples a CSS easing into points (x, y), for plotting. */
 export function sampleEasing(value: string, steps = 48): [number, number][] {
   const bezier = value.match(/cubic-bezier\(([^)]+)\)/)
   const named: Record<string, string> = {

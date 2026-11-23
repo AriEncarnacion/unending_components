@@ -19,7 +19,6 @@ export function copy(text: string) {
   )
 }
 
-/** Gamut label for a colour: fits sRGB, needs a P3 screen, or is outside both. */
 export function GamutNote({ color, onFit }: { color: Oklch; onFit?: () => void }) {
   const gamut = gamutOf(color)
   if (gamut === "srgb") return null
@@ -39,7 +38,6 @@ export function GamutNote({ color, onFit }: { color: Oklch; onFit?: () => void }
   )
 }
 
-/** Text field that takes hex or oklch() and only commits valid colours. */
 function ColorText({ value, onChange, label }: { value: Oklch; onChange: (next: Oklch) => void; label: string }) {
   const [draft, setDraft] = React.useState<string | null>(null)
   const shown = draft ?? toHex(value)
@@ -132,10 +130,6 @@ function ChannelRow({
   )
 }
 
-/**
- * OKLCH editor: swatch with a native picker, hex/oklch field, copy buttons and
- * L, C, H sliders whose tracks show where each channel goes.
- */
 export function OklchControl({
   value,
   onChange,
@@ -143,7 +137,6 @@ export function OklchControl({
   swatch,
 }: {
   value: Oklch
-  /** `channel` says which slider moved, so callers can merge a drag into one undo step. */
   onChange: (next: Oklch, channel?: Channel | "text" | "picker" | "fit") => void
   label: string
   swatch?: string

@@ -4,10 +4,7 @@ import { useParams } from "next/navigation"
 
 import { Example } from "@/components/showcase/example"
 
-// The stock sidebar switches to a sheet below 768px, so frames keep a
-// desktop width and scroll sideways on small screens instead.
 function Frame({ query, title, mobile = false }: { query: string; title: string; mobile?: boolean }) {
-  // Frames follow the design system in the catalog URL.
   const { system } = useParams<{ system: string }>()
   return (
     <div className="overflow-x-auto rounded-lg border">

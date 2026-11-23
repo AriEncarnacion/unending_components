@@ -56,8 +56,6 @@ export type FileToolbarProps = Omit<React.ComponentProps<"div">, "children"> & {
   primaryAction?: Omit<FileAction, "priority" | "menuOnly" | "destructive">
 }
 
-// A minute-resolution clock for "Saved 2 min ago". Null on the server, so
-// the first client render matches and the relative time fills in after.
 let minute = Date.now()
 function subscribeMinute(notify: () => void) {
   minute = Date.now()
@@ -139,7 +137,6 @@ function FileName({ name, onRename }: { name: string; onRename?: (name: string) 
         value={draft}
         onChange={(event: React.ChangeEvent<HTMLInputElement>) => setDraft(event.target.value)}
         onFocus={(event: React.FocusEvent<HTMLInputElement>) => {
-          // Select the name without its extension, as file managers do.
           const dot = event.target.value.lastIndexOf(".")
           event.target.setSelectionRange(0, dot > 0 ? dot : event.target.value.length)
         }}
@@ -204,18 +201,8 @@ function FileToolbar({
   )
   const inline = ordered.filter((action) => !action.menuOnly)
   const needsMenu = ordered.some((action) => action.menuOnly)
-  // Re-measure when the set of actions changes, not on every render: `actions`
-  // is often a fresh array. Label and font changes resize the ruler instead.
   const layoutKey = ordered.map((action) => `${action.id}:${action.menuOnly ? 1 : 0}`).join("|")
 
-  // Two layers, after Primer's ActionBar and Fluent's overflow manager:
-  // - CSS guarantees nothing overlaps. Actions sit in a one-row, clipped,
-  //   wrapping strip, so one that doesn't fit drops onto a hidden second row.
-  //   That holds in the server HTML, before measuring, mid-resize and inside a
-  //   scaled or zooming parent.
-  // - JS picks which actions show, by priority, from layout sizes
-  //   (offsetWidth / clientWidth, which transforms don't change) and the
-  //   measured gap, padding and More button rather than fixed pixels.
   const slot = React.useRef<HTMLDivElement>(null)
   const strip = React.useRef<HTMLDivElement>(null)
   const ruler = React.useRef<HTMLDivElement>(null)
@@ -229,8 +216,6 @@ function FileToolbar({
     const update = () => {
       const items = Array.from(rulerEl.querySelectorAll<HTMLElement>("[data-measure=action]"))
       const more = rulerEl.querySelector<HTMLElement>("[data-measure=more]")
-      // offsetWidth rounds to whole pixels; +1 keeps a rounded-down action
-      // from being clipped by the strip.
       const widths = items.map((item) => item.offsetWidth + 1)
       const stripStyle = getComputedStyle(stripEl)
       const gap = px(stripStyle.columnGap)
@@ -252,8 +237,6 @@ function FileToolbar({
       const all = fitIn(needsMenu ? moreSpace : room)
       setFit(all === widths.length ? all : fitIn(moreSpace))
     }
-    // Observing reports the first size right away, before paint. The ruler
-    // too: its actions grow when the web font loads, with no resize of the slot.
     const observer = new ResizeObserver(update)
     observer.observe(slotEl)
     observer.observe(rulerEl)
@@ -270,7 +253,6 @@ function FileToolbar({
       data-slot="file-toolbar"
       aria-label={`${name} actions`}
       className={cn(
-        // A size container: below 20rem the primary action shows just its icon.
         "@container/file-toolbar flex h-12 w-full min-w-0 items-center gap-2 rounded-xl border bg-background px-2",
         className
       )}
@@ -279,7 +261,6 @@ function FileToolbar({
       <span className="grid size-8 shrink-0 place-items-center text-muted-foreground [&_svg]:size-4">
         {icon ?? <FileIcon />}
       </span>
-      {/* The name is the identifier: it truncates before anything overlaps. */}
       <div className="flex min-w-12 shrink flex-col justify-center leading-none">
         <FileName name={name} onRename={onRename} />
         {status ? (
@@ -289,9 +270,7 @@ function FileToolbar({
         ) : null}
       </div>
 
-      {/* Always room for More, so it never lands on the name. */}
       <div ref={slot} className="relative flex min-w-8 flex-1 items-center justify-end gap-1">
-        {/* Off-screen copy of every inline action and of More, measured to decide what fits. */}
         <div
           ref={ruler}
           aria-hidden="true"
@@ -309,9 +288,6 @@ function FileToolbar({
           </Button>
         </div>
 
-        {/* One clipped row: an action that doesn't fit wraps out of sight rather
-            than overlapping. Padded so focus rings aren't clipped; the second
-            row starts below the clip. */}
         <div
           ref={strip}
           data-slot="file-toolbar-actions"
@@ -325,7 +301,6 @@ function FileToolbar({
                     render={<Button variant={actionVariant} size="sm" />}
                     disabled={action.disabled}
                     onClick={action.onSelect}
-                    // Toolbar keeps disabled buttons focusable via aria-disabled.
                     className={cn("aria-disabled:opacity-50", action.destructive && "text-destructive")}
                   />
                 }
@@ -377,7 +352,6 @@ function FileToolbar({
             onClick={primaryAction.onSelect}
           >
             {primaryAction.icon ? <primaryAction.icon data-icon="inline-start" /> : null}
-            {/* Icon only in a narrow toolbar; the label stays for screen readers. */}
             <span className={primaryAction.icon ? "@max-xs/file-toolbar:sr-only" : undefined}>{primaryAction.label}</span>
           </ToolbarPrimitive.Button>
         </>

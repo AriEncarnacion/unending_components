@@ -1,14 +1,8 @@
-// How each font the tuner offers (ids from app/fonts.ts) ships to an app.
-// `item` is the shadcn registry:font payload; null means there's nothing to
-// install: a system stack, or a licensed face the app has to supply itself.
-
 export type ShippedFont = {
   id: string
   label: string
-  /** The CSS font-family stack the app ends up with. */
   family: string
   item: { import: string; dependency: string; family: string } | null
-  /** Licensed and local to this machine: never shipped, the app supplies the files. */
   licensed?: boolean
 }
 
@@ -45,5 +39,4 @@ export function fontById(id: string) {
   return shippedFonts.find((font) => font.id === id)
 }
 
-/** Stock's choices, matching the font-* items in registry.json. */
 export const stockFonts = { sans: "dm-sans", heading: "manrope", mono: "geist-mono" } as const

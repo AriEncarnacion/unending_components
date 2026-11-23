@@ -1,6 +1,3 @@
-// Writes the agent-facing catalog index the plugin's skill reads:
-// plugin/skills/unending-catalog/references/catalog.md, generated from
-// registry.json and each entry's README. Run with --check to fail if stale.
 import { existsSync, readFileSync, writeFileSync } from "node:fs"
 
 const root = new URL("../", import.meta.url)

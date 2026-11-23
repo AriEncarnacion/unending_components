@@ -121,13 +121,11 @@ export function ComposedSection() {
         <Button variant="outline" size="sm" onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}>
           <SunIcon data-icon="inline-start" className="dark:hidden" />
           <MoonIcon data-icon="inline-start" className="hidden dark:block" />
-          {/* CSS picks the label, so the server and client render the same text. */}
           <span className="dark:hidden">Switch to dark</span>
           <span className="hidden dark:inline">Switch to light</span>
         </Button>
       }
     >
-      {/* Laid out by its own width, not the window's: it lives in a resizable pane. */}
       <div className="@container/composed">
         <div
           className="grid gap-4 rounded-2xl bg-muted/40 p-4 @md/composed:p-6 @3xl/composed:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]"
@@ -304,7 +302,6 @@ export function ComposedSection() {
           </div>
 
           <div className="flex min-w-0 flex-col gap-4">
-            {/* Stock reserves 72px for the action; tuned spacing can make Assign wider. */}
             <Alert variant="destructive" className="has-data-[slot=alert-action]:pr-24">
               <CircleAlertIcon />
               <AlertTitle>Secondary has a 4-hour gap</AlertTitle>

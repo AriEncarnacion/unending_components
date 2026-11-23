@@ -10,7 +10,6 @@ const MIN = 200
 const MAX = 480
 const STEP = 16
 
-/** The sidebar's width in pixels, remembered per browser. null means the stock width. */
 export function useSidebarWidth() {
   const [width, setWidth] = React.useState<number | null>(null)
   React.useEffect(() => {
@@ -27,26 +26,18 @@ export function useSidebarWidth() {
       else localStorage.setItem(STORAGE_KEY, String(next))
     } catch {}
   }, [])
-  // setWidth while dragging; save once the drag ends.
   return [width, setWidth, save] as const
 }
 
 const clamp = (value: number) => Math.round(Math.min(MAX, Math.max(MIN, value)))
 
-/**
- * A drag handle on the sidebar's right edge. It sets the stock sidebar's
- * --sidebar-width (through SidebarProvider's style), so components/ui/sidebar
- * stays as shadcn ships it. Double-click resets to the stock width.
- */
 export function SidebarResizer({
   width,
   onWidthChange,
   onWidthCommit,
 }: {
   width: number | null
-  /** Every pointer move while dragging. */
   onWidthChange: (width: number | null) => void
-  /** Once the width is chosen: drag end, keyboard or reset. */
   onWidthCommit: (width: number | null) => void
 }) {
   const { state, isMobile } = useSidebar()
@@ -57,7 +48,6 @@ export function SidebarResizer({
 
   const current = () => width ?? ref.current?.getBoundingClientRect().left ?? 256
 
-  // The stock sidebar animates its width; that animation lags a drag.
   const setTransitions = (on: boolean) => {
     const wrapper = ref.current?.closest<HTMLElement>('[data-slot="sidebar-wrapper"]')
     wrapper

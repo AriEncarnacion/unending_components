@@ -1,12 +1,3 @@
-// Size, Leading and Flow: the text controls a system can tune. Shared by the
-// showcase and the build scripts, so it has no @/ imports.
-//
-// Size is Tailwind's --text-sm, the size shadcn sets UI text at. Changing it
-// scales every text-* step by the same ratio. Leading sets one line height
-// for the running-text steps (xs to lg); headings keep Tailwind's tight ones.
-// Flow is --spacing-flow, the space between paragraphs (space-y-flow, mt-flow).
-
-/** Tailwind v4's text scale: size in rem and line height as a ratio of it. */
 export const textScale: Record<string, { rem: number; leading: number }> = {
   xs: { rem: 0.75, leading: 1 / 0.75 },
   sm: { rem: 0.875, leading: 1.25 / 0.875 },
@@ -23,7 +14,6 @@ export const textScale: Record<string, { rem: number; leading: number }> = {
   "9xl": { rem: 8, leading: 1 },
 }
 
-/** The steps Leading applies to. */
 export const runningTextSteps = ["xs", "sm", "base", "lg"]
 
 export const stockTextSm = "0.875rem"
@@ -47,7 +37,6 @@ export const flowOptions = [
 
 const round = (n: number) => Number(n.toFixed(4))
 
-/** A length in rem (px are read at 16px to the rem). */
 export function toRem(value: string) {
   const n = parseFloat(value)
   return value.trim().endsWith("px") ? n / 16 : n
@@ -55,7 +44,6 @@ export function toRem(value: string) {
 
 type TypeTheme = { "--text-sm"?: string; "--leading-body"?: string }
 
-/** Each text step's size (rem) and line height (ratio) with a system's Size and Leading applied. */
 export function tunedScale(theme: TypeTheme) {
   const ratio = theme["--text-sm"] ? toRem(theme["--text-sm"]) / textScale.sm.rem : 1
   const leading = theme["--leading-body"] ? parseFloat(theme["--leading-body"]) : null
@@ -67,7 +55,6 @@ export function tunedScale(theme: TypeTheme) {
   )
 }
 
-/** The Tailwind variables Size and Leading set, keyed by CSS variable name. Empty when neither is tuned. */
 export function typeVars(theme: TypeTheme): Record<string, string> {
   const vars: Record<string, string> = {}
   const scale = tunedScale(theme)
