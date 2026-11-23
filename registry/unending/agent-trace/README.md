@@ -16,7 +16,7 @@ Don't use it for logs with thousands of lines. Use a `CodeBlock` with scrolling 
 | Run summary | `TraceCollapsible` + `TraceLine` | Shows the current step while running, "Worked for 34s · 5 steps" when done, and "Stopped after an error" on failure. |
 | Step | `TraceLine` + `TraceIcon` + `TraceTitle` + `TraceDescription` | The icon is by kind: think, search, read, edit, command, web or tool. Running steps show a `Spinner` and a `shimmer` title. The description holds the result and duration. |
 | Step body | `TraceCollapsibleContent` | Holds reasoning text, highlighted tool input or output (`CodeBlock` + `useHighlightedCode`), and nested steps. |
-| States | `TraceLine status` | `running`, `error` (opens itself) and `pending` (dimmed). |
+| States | `TraceLine status` | `running`, `error` (opens itself) and `pending` (muted text and its own icon, at full opacity: stock's 60% fade drops it below 4.5:1 contrast). |
 
 ## Writing step titles
 

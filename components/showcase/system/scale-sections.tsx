@@ -148,7 +148,7 @@ export function ElevationSection() {
             </div>
             <div className="flex flex-col">
               <code className="font-mono text-xs">{step.className}</code>
-              <Readout value={shadowValues[step.name]} className="text-[0.625rem] leading-tight" />
+              <Readout value={shadowValues[step.name]} className="text-xs leading-snug" />
             </div>
           </div>
         ))}

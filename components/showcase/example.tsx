@@ -16,7 +16,7 @@ export function Example({
   return (
     <section className="flex min-w-0 flex-col gap-3">
       <div className="flex flex-col gap-1">
-        <h3 className="font-medium">{title}</h3>
+        <h2 className="font-medium">{title}</h2>
         {description ? (
           <p className="max-w-prose text-sm text-muted-foreground">{description}</p>
         ) : null}

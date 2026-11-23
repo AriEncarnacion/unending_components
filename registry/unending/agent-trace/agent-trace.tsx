@@ -121,7 +121,9 @@ function StepRow({ step, now }: { step: AgentStep; now: number | null }) {
   const traceStatus =
     step.status === "running" ? "running" : step.status === "error" ? "error" : step.status === "pending" ? "pending" : undefined
   const line = (
-    <TraceLine status={traceStatus}>
+    // Pending steps keep full opacity: their icon already sets them apart, and
+    // stock's 60% fade drops muted text below 4.5:1.
+    <TraceLine status={traceStatus} className="data-[status=pending]:opacity-100">
       <TraceIcon>
         {step.status === "running" ? (
           <Spinner />
@@ -133,7 +135,7 @@ function StepRow({ step, now }: { step: AgentStep; now: number | null }) {
       </TraceIcon>
       <TraceTitle>{step.title}</TraceTitle>
       {step.result || elapsed ? (
-        <TraceDescription>
+        <TraceDescription className="text-muted-foreground">
           {[step.result, elapsed !== undefined && elapsed >= 1000 ? formatDuration(elapsed) : null]
             .filter(Boolean)
             .join(" · ")}
@@ -205,7 +207,7 @@ function AgentTrace({ steps, defaultOpen, className, ...props }: AgentTraceProps
             <TraceLine status={running ? "running" : failed ? "error" : undefined}>
               <TraceIcon>{running ? <Spinner /> : failed ? <XIcon /> : <CheckIcon />}</TraceIcon>
               <TraceTitle>{summary}</TraceTitle>
-              <TraceDescription>
+              <TraceDescription className="text-muted-foreground">
                 {[running && duration, count].filter(Boolean).join(" · ")}
               </TraceDescription>
             </TraceLine>

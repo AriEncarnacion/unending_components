@@ -242,7 +242,7 @@ export function Tuner({
       onRevert={reset}
     >
       {!mounted ? (
-        <p className="p-3 text-sm text-muted-foreground">Loading tuner…</p>
+        <p className="p-4 text-sm text-muted-foreground">Loading tuner…</p>
       ) : (
         <>
           <InspectorSection title="Presets" summary={`${recipes.length} built from /palette`} defaultOpen={false}>
@@ -378,7 +378,7 @@ export function Tuner({
             </p>
           </InspectorSection>
 
-          <div className="flex flex-col gap-2 p-3">
+          <div className="flex shrink-0 flex-col gap-2 p-4">
             <Dialog>
               <DialogTrigger render={<Button className="w-full" />}>
                 <CopyIcon data-icon="inline-start" />

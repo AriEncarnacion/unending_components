@@ -63,7 +63,7 @@ function InspectorPanel({
       )}
       {...props}
     >
-      <header className="flex min-h-12 shrink-0 items-center gap-2 border-b px-3 py-2">
+      <header className="flex min-h-14 shrink-0 items-center gap-2 border-b py-2.5 pr-2.5 pl-4">
         <div className="flex min-w-0 flex-1 flex-col">
           {kind ? (
             <span className="text-xs text-muted-foreground">
@@ -101,9 +101,19 @@ function InspectorPanel({
           )}
         </div>
       ) : (
-        <ScrollArea className="min-h-0 flex-1">
-          <div className="flex flex-col">{children}</div>
-        </ScrollArea>
+        // Each row is sized between its minimum and its content. Content
+        // outside sections keeps its full height; a section's minimum is its
+        // header. The rest of the height is split evenly, a section never
+        // takes more than its content, and what it doesn't need goes to the
+        // others. Open sections then scroll on their own, so nothing outside
+        // them moves. The body itself scrolls only if even the headers and
+        // the content outside sections don't fit.
+        <div
+          data-slot="inspector-body"
+          className="grid min-h-0 flex-1 auto-rows-[minmax(auto,max-content)] content-start overflow-y-auto overscroll-contain"
+        >
+          {children}
+        </div>
       )}
     </aside>
   )
@@ -128,10 +138,13 @@ function InspectorSection({
     <Collapsible
       data-slot="inspector-section"
       defaultOpen={defaultOpen ?? tuning.sectionsOpen}
-      className={cn("border-b last:border-b-0", className)}
+      className={cn(
+        "flex min-h-11 flex-col border-b last:border-b-0",
+        className
+      )}
       {...props}
     >
-      <CollapsibleTrigger className="group/inspector-trigger flex h-10 w-full items-center gap-2 px-3 text-left text-sm font-medium outline-none hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset">
+      <CollapsibleTrigger className="group/inspector-trigger flex h-11 w-full shrink-0 items-center gap-2 px-4 text-left text-sm font-medium outline-none hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset">
         <ChevronRightIcon className="size-4 shrink-0 text-muted-foreground transition-transform group-aria-expanded/inspector-trigger:rotate-90" />
         <span className="truncate">{title}</span>
         {summary ? (
@@ -141,10 +154,16 @@ function InspectorSection({
         ) : null}
       </CollapsibleTrigger>
       <CollapsibleContent
-        className="h-(--collapsible-panel-height) overflow-hidden transition-[height] data-ending-style:h-0 data-starting-style:h-0"
+        className="flex h-(--collapsible-panel-height) min-h-0 flex-col overflow-hidden transition-[height] data-ending-style:h-0 data-starting-style:h-0"
         style={{ transitionDuration: `${tuning.sectionMs}ms` }}
       >
-        <div className="flex flex-col gap-3 px-3 pt-1 pb-4">{children}</div>
+        {/* Its own scroll, with the scrollbar in a gutter of its own: 6px in
+            from the panel's edge, 10px wide, then the same 16px of space
+            before the content as on the left. Every section reserves the
+            gutter, scrolling or not, so rows line up across sections. */}
+        <ScrollArea className="mr-1.5 mb-1.5 flex min-h-0 flex-1 flex-col [&>[data-slot=scroll-area-viewport]]:min-h-0 [&>[data-slot=scroll-area-viewport]]:overscroll-contain">
+          <div className="flex flex-col gap-4 pt-1 pr-6.5 pb-4 pl-4">{children}</div>
+        </ScrollArea>
       </CollapsibleContent>
     </Collapsible>
   )
@@ -167,13 +186,13 @@ function InspectorRow({ label, htmlFor, hint, mixed, className, children, ...pro
       data-slot="inspector-row"
       data-mixed={mixed || undefined}
       orientation="horizontal"
-      className={cn("grid grid-cols-[6.5rem_minmax(0,1fr)] items-center gap-x-3 gap-y-1", className)}
+      className={cn("grid grid-cols-[6.5rem_minmax(0,1fr)] items-center gap-x-4 gap-y-1.5", className)}
       {...props}
     >
       <FieldLabel htmlFor={htmlFor} className="text-xs font-normal text-muted-foreground">
         {label}
         {mixed ? (
-          <Badge variant="outline" className="ml-1 h-4 px-1 text-[0.625rem] font-normal">
+          <Badge variant="outline" className="ml-1 h-4 px-1 text-[0.6875rem] font-normal">
             mixed
           </Badge>
         ) : null}

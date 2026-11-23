@@ -13,12 +13,16 @@ Don't use it for creating new things, or for long forms that need focus. A sheet
 
 | Part | Built from | Notes |
 | --- | --- | --- |
-| Panel | `aside` with `bg-card`, `ScrollArea` | Has a fixed header, and the body scrolls. Give it a height. |
+| Panel | `aside` with `bg-card` | Has a fixed header. Give it a height or a max height: it grows with its content up to that. |
 | Header | text + `Button` (ghost) | Shows the kind and title, or "3 shifts selected" and "Editing 3 at once". Revert appears only when there are unsaved edits. Close is optional. |
-| Section | `Collapsible` | A full-width trigger with a chevron. While closed it shows a one-line `summary`, so nothing is hidden without a trace. |
+| Section | `Collapsible` + `ScrollArea` | A full-width trigger with a chevron. While closed it shows a one-line `summary`, so nothing is hidden without a trace. Open sections share the panel's height, and each scrolls on its own, so scrolling one never moves the others. There's no outer scroll: when several open sections don't fit, each shrinks, down to its header; close one to give the rest room. Content outside sections (a status line, a footer) always keeps its full height. |
 | Row | `Field` (horizontal) + `FieldLabel` | A 6.5rem label column, then the control. An optional hint sits beneath it. |
 | Mixed | `Badge` (outline) + `MIXED` placeholder | Use it when a field's value differs across the selection. Editing a mixed field sets it for every selected item. |
 | Empty | `Empty` | "Select something to inspect". Replace it with the `empty` prop. |
+
+## Spacing
+
+Content sits 16px from the panel's edges. A section's scrollbar has a gutter of its own: 6px in from the right edge, then 16px of space before the content, the same as the left edge. Every section reserves it, scrolling or not, so rows line up. Scrolled content has room above and below, so it doesn't run into the section header.
 
 ## Composition
 
