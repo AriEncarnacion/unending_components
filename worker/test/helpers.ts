@@ -129,6 +129,9 @@ export async function shipRequest(key: TestKey, shipment: Shipment, system = "ja
 
 export const ALLOW = ["lucide-react", "cn"]
 
+/** The test org's numeric id on GitHub. */
+export const ACME_ID = 1234
+
 /** Seeds the allowlist with a signed call. */
 export async function seedAllowlist(key: TestKey, e: Env) {
   const response = await call(await signed(key, "POST", "/admin/allowlist", { add: ALLOW }), e)
@@ -136,6 +139,6 @@ export async function seedAllowlist(key: TestKey, e: Env) {
 }
 
 export async function ship(key: TestKey, e: Env, version: number, extra: Partial<ShipBody> = {}, files?: Record<string, string>) {
-  const shipment = await shipBody(key, version, files, { org: version === 1 ? "acme" : undefined, ...extra })
+  const shipment = await shipBody(key, version, files, { ...(version === 1 ? { org: "acme", orgId: ACME_ID } : {}), ...extra })
   return call(await shipRequest(key, shipment), e)
 }

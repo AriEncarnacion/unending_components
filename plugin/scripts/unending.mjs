@@ -16,7 +16,7 @@
 // Options: --registry <url> (default https://registry.unending.studio, or
 // UNENDING_REGISTRY_URL), --dotenv <path> (default .env.local).
 import { createHash, webcrypto } from "node:crypto"
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { execFileSync } from "node:child_process"
@@ -173,7 +173,9 @@ async function login() {
 
 async function systems() {
   const { text } = await getJson(`${registry}/systems.json`)
-  for (const s of JSON.parse(text).systems) console.log(`${s.id}\t${s.visibility}\tv${s.version}\t${s.name}`)
+  const body = JSON.parse(text)
+  for (const s of body.systems) console.log(`${s.id}\t${s.visibility}\tv${s.version}\t${s.name}`)
+  if (body.tokenRefused) console.log(`Private systems aren't listed: ${body.tokenRefused}`)
 }
 
 async function fetchItems() {
@@ -183,8 +185,8 @@ async function fetchItems() {
   const release = JSON.parse((await getJson(`${registry}/r/${system}/release.json`)).text)
   const manifest = await verifyRelease(system, release)
   const version = manifest.version
-  const outDir = path.join(tmpdir(), "unending", system, `v${version}`)
-  mkdirSync(outDir, { recursive: true })
+  // A fresh private folder each run (mode 0700), so nothing else can swap the files between this check and `shadcn add`.
+  const outDir = mkdtempSync(path.join(tmpdir(), `unending-${system}-v${version}-`))
 
   const done = new Map()
   const order = []
@@ -206,7 +208,7 @@ async function fetchItems() {
     // shadcn never fetches them again unverified.
     item.registryDependencies = (item.registryDependencies ?? []).filter((dep) => !dep.startsWith("@unending/"))
     const local = path.join(outDir, file)
-    writeFileSync(local, JSON.stringify(item, null, 2))
+    writeFileSync(local, JSON.stringify(item, null, 2), { flag: "wx", mode: 0o600 })
     done.set(name, local)
     order.push(local)
   }

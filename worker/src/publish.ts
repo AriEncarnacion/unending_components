@@ -21,7 +21,7 @@ export type VersionWrite = {
   /** `r/<item>.json` and `src/<path>`, already validated and matched to the release. */
   files: Record<string, string>
   /** Set on a system's first version. */
-  create?: { visibility: Visibility; org?: string }
+  create?: { visibility: Visibility; org?: string; orgId?: number }
   /** Packages added to the allowlist with this version. */
   allow?: string[]
   log: { by: string; commit?: string; summary?: string }
@@ -55,7 +55,7 @@ export async function writeVersion(env: Env, write: VersionWrite): Promise<Regis
       : {
           name: write.name,
           visibility: write.create?.visibility ?? "private",
-          ...(write.create?.org ? { org: write.create.org } : {}),
+          ...(write.create?.org ? { org: write.create.org, orgId: write.create.orgId } : {}),
           current: version,
           latest: version,
           updatedAt: at,

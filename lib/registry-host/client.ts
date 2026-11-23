@@ -85,7 +85,8 @@ export function pinnedKeys(): PinnedKey[] {
 export async function verifyRelease(
   release: Release,
   files: { source?: Record<string, string>; items?: Record<string, string> },
-  local: KeyInfo | null
+  local: KeyInfo | null,
+  expected: { system: string; version: number }
 ): Promise<Manifest> {
   if (release.signer.kind !== "admin") throw new Error("Only admin-signed releases can be pulled.")
   const { keyId, signature } = release.signer
@@ -95,6 +96,8 @@ export async function verifyRelease(
   if (!publicKey) throw new Error(`The release was signed by key ${keyId}, which isn't trusted here.`)
   if (!(await verify(publicKey, signature, releaseMessage(release.payload)))) throw new Error("The release signature doesn't verify.")
   const manifest = parseManifest(release.payload)
+  if (manifest.system !== expected.system || manifest.version !== expected.version)
+    throw new Error(`The release is for ${manifest.system} v${manifest.version}, not ${expected.system} v${expected.version}.`)
   for (const [kind, list] of [
     ["source", files.source],
     ["items", files.items],

@@ -138,7 +138,15 @@ export type Preflight = {
   claude: boolean
 }
 
-export async function preflight(): Promise<Preflight> {
+let preflightCache: { at: number; value: Promise<Preflight> } | undefined
+
+/** What Ship needs, cached for 30 seconds: checking it spawns processes. */
+export function preflight(): Promise<Preflight> {
+  if (!preflightCache || Date.now() - preflightCache.at > 30_000) preflightCache = { at: Date.now(), value: checkPreflight() }
+  return preflightCache.value
+}
+
+async function checkPreflight(): Promise<Preflight> {
   const problems: string[] = []
   const signer = await signerAvailable()
   if (signer) problems.push(signer)
@@ -262,13 +270,26 @@ async function ship(job: ShipJob, options: ShipOptions) {
 
   const record = readShipped()[id]
   if (record && record.sourceHash === hashOf(source) && record.inputsHash === inputsHash() && existsSync(lastDir) && sameFiles(buildDir, lastDir))
-    return finish(job, "nothing", { note: `Version ${record.latest} already has exactly this.` })
+    return finish(job, "nothing", {
+      note:
+        record.current === record.latest
+          ? `Version ${record.latest} already has exactly this.`
+          : `Version ${record.latest} already has exactly this, but the registry serves version ${record.current}. Use Serve v${record.latest} to undo the rollback.`,
+    })
 
   if (options.review) {
     step(job, "Claude is reviewing what changed")
     const verdict = await review(job, buildDir, lastDir)
     if (verdict.block) return finish(job, "blocked", { step: "The review found something to fix", findings: verdict.text })
     job.findings = verdict.text
+  }
+
+  // A first ship binds the system to the org's numeric id, which a renamed org keeps
+  // and a newcomer taking its old name doesn't get.
+  let org: { org: string; orgId: number } | undefined
+  if (!record && options.org) {
+    step(job, `Looking up the ${options.org} org on GitHub`)
+    org = await lookUpOrg(options.org)
   }
 
   const commit = await run("git", ["rev-parse", "HEAD"], { cwd: root }).then(
@@ -308,7 +329,7 @@ async function ship(job: ShipJob, options: ShipOptions) {
         body: {
           version,
           name: job.systemName,
-          ...(record ? {} : options.org ? { org: options.org } : {}),
+          ...(org ?? {}),
           ...(options.allow?.length ? { allow: options.allow } : {}),
           release: { payload, keyId: key!.keyId },
           files,
@@ -336,6 +357,19 @@ async function ship(job: ShipJob, options: ShipOptions) {
     })
   }
   throw new Error("The registry's version kept moving. Pull, then ship again.")
+}
+
+/** A GitHub org's canonical login and numeric id, from GitHub's public API. */
+async function lookUpOrg(login: string): Promise<{ org: string; orgId: number }> {
+  const response = await fetch(`https://api.github.com/orgs/${encodeURIComponent(login)}`, {
+    headers: { accept: "application/vnd.github+json", "user-agent": "unending-catalog" },
+  })
+  if (response.status === 404) throw new Error(`GitHub has no org called ${login}.`)
+  if (!response.ok) throw new Error(`Couldn't look up the ${login} org on GitHub (${response.status}).`)
+  const body = (await response.json()) as { id?: number; login?: string; type?: string }
+  if (body.type !== "Organization" || !Number.isSafeInteger(body.id) || typeof body.login !== "string")
+    throw new Error(`${login} isn't a GitHub organization.`)
+  return { org: body.login.toLowerCase(), orgId: body.id! }
 }
 
 function sameFiles(a: string, b: string) {
@@ -439,7 +473,9 @@ export function startPull(force: boolean) {
     for (const system of result.data.systems) {
       if (!system.source || !idPattern.test(system.id)) continue
       step(job, `Verifying ${system.name}`)
-      await verifyRelease(system.source.release, { source: system.source.files }, local)
+      if (system.source.version !== system.current) throw new Error(`The registry sent ${system.name} v${system.source.version}, but says it serves v${system.current}.`)
+      // Signed by a trusted key, for this system and this version, with these files.
+      await verifyRelease(system.source.release, { source: system.source.files }, local, { system: system.id, version: system.current })
       const dir = path.join(systemsDir, system.id)
       const incoming = system.source.files
       if (existsSync(path.join(dir, "system.json"))) {
@@ -480,12 +516,17 @@ export function startPull(force: boolean) {
  * Worker (ADMIN_KEYS) is a step in the Cloudflare dashboard.
  */
 export async function setUpThisMac() {
-  const key = await createKey()
-  let pinned: { keys: unknown[] } = { keys: [] }
+  // Read the pinned keys first: if the file is broken, stop before making a key.
+  let pinned: { keys?: unknown[] }
   try {
     pinned = JSON.parse(readFileSync(pinnedKeysFile, "utf8"))
-  } catch {}
-  pinned.keys = [...(pinned.keys ?? []), { keyId: key.keyId, publicKey: key.publicKey, addedAt: new Date().toISOString() }]
+    if (!pinned || typeof pinned !== "object" || !Array.isArray(pinned.keys)) throw new Error("no keys list")
+  } catch (error) {
+    throw new Error(`plugin/keys.json can't be read (${(error as Error).message}). Fix it, then set up this Mac.`)
+  }
+  const key = await createKey()
+  preflightCache = undefined
+  pinned.keys = [...pinned.keys!, { keyId: key.keyId, publicKey: key.publicKey, addedAt: new Date().toISOString() }]
   writeFileSync(pinnedKeysFile, JSON.stringify(pinned, null, 2) + "\n")
   return { ...key, keyFile }
 }

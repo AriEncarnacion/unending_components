@@ -80,6 +80,8 @@ describe("publishing Stock", () => {
     for (const claims of [
       { ref: "refs/heads/feature" },
       { event_name: "pull_request" },
+      { event_name: "pull_request_target" },
+      { event_name: "workflow_run" },
       { repository_id: "999" },
       { job_workflow_ref: "AriEncarnacion/unending_components/.github/workflows/ci.yml@refs/heads/main" },
       { job_workflow_ref: "AriEncarnacion/unending_components/.github/workflows/publish-stock.yml@refs/heads/feature" },

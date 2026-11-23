@@ -51,7 +51,7 @@ Everything below is in your Cloudflare account. Log in with `npx wrangler login`
    ```bash
    gh variable set REGISTRY_URL --body https://registry.unending.studio
    ```
-   Stock's packages must be on the allowlist first. The first Ship from the catalog asks you to allow the same set.
+   Stock's packages must be on the allowlist first: the first Ship from the catalog asks you to allow the same set. Then publish Stock once with Actions → Publish Stock → Run workflow (on `main`), or `gh workflow run publish-stock.yml --ref main`. After that it publishes whenever Stock changes on `main`.
 7. **Spend guards.**
    - Stay on Workers Free, which fails requests past 100,000 a day instead of billing them.
    - Add a rate-limiting rule (Security → WAF → Rate limiting rules) on `registry.unending.studio/r/*`, for example 300 requests per 10 seconds per IP, blocking for 10 seconds.

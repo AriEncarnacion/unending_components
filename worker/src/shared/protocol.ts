@@ -171,8 +171,10 @@ export type ShipBody = {
   version: number
   /** Display name, for listings and alerts. */
   name: string
-  /** Required on a system's first ship: the GitHub org whose members may read it. */
+  /** Required on a system's first ship: the GitHub org whose members may read it, */
   org?: string
+  /** and that org's numeric id, which survives renames (a login can be reclaimed by someone else). */
+  orgId?: number
   /** npm packages this ship adds to the allowlist. Only sent after you approve them. */
   allow?: string[]
   /** The manifest's exact text. Its signature travels in the release-signature header. */

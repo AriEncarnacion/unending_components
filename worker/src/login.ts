@@ -50,8 +50,8 @@ export async function handleLogin(request: Request, env: Env, action: string | u
     if (typeof deviceCode !== "string" || !/^[A-Za-z0-9_-]{8,100}$/.test(deviceCode)) return fail(400, "device_code is missing.")
     if (!orgPattern.test(org)) return fail(400, "org must be a GitHub org login.")
     const { state } = await readState(env)
-    if (!Object.values(state.systems).some((s) => s.visibility === "private" && s.org === org))
-      return fail(404, "This registry has no private systems for that org.")
+    const orgIds = new Set(Object.values(state.systems).flatMap((s) => (s.visibility === "private" && s.org === org && s.orgId ? [s.orgId] : [])))
+    if (!orgIds.size) return fail(404, "This registry has no private systems for that org.")
 
     const answer = await form(`${GITHUB_WEB}/login/oauth/access_token`, {
       client_id: env.GITHUB_CLIENT_ID,
@@ -66,8 +66,10 @@ export async function handleLogin(request: Request, env: Env, action: string | u
     const user = await githubUser(githubToken)
     const scopes = user.scopes.split(",").map((s) => s.trim()).filter(Boolean)
     if (scopes.some((s) => s !== "read:org")) return fail(400, "The GitHub token has more than read:org, so it wasn't kept.")
-    if (!(await checkMembership(githubToken, org))) return fail(403, "You're not an active member of that org.")
-    const issued = await issueToken(env, { userId: user.id, org }, githubToken)
+    const membership = await checkMembership(githubToken, org)
+    // The org must be the one the systems were shipped for, not a new org that took its old name.
+    if (!membership.active || !membership.orgId || !orgIds.has(membership.orgId)) return fail(403, "You're not an active member of that org.")
+    const issued = await issueToken(env, { userId: user.id, org, orgId: membership.orgId }, githubToken)
     return json({ token: issued.token, expiresAt: issued.expiresAt, org })
   }
 

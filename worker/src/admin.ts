@@ -102,8 +102,8 @@ async function ship(env: Env, admin: Admin, id: string, raw: Uint8Array, release
   const { state } = await readState(env)
   const existing = state.systems[id]
   if (!existing) {
-    if (typeof body.org !== "string" || !orgPattern.test(body.org))
-      return fail(400, "A system's first ship must name the GitHub org whose members may read it.")
+    if (typeof body.org !== "string" || !orgPattern.test(body.org) || !Number.isSafeInteger(body.orgId) || (body.orgId as number) < 1)
+      return fail(400, "A system's first ship must name the GitHub org whose members may read it, with its numeric id.")
   } else if (body.org !== undefined && (typeof body.org !== "string" || body.org.toLowerCase() !== existing.org)) {
     return fail(400, "Changing who can read a system is a separate action.")
   }
@@ -158,7 +158,7 @@ async function ship(env: Env, admin: Admin, id: string, raw: Uint8Array, release
       name: body.name,
       release: { payload: release.payload, signer: { kind: "admin", keyId: release.keyId, signature: releaseSignature } },
       files,
-      create: existing ? undefined : { visibility: "private", org: (body.org as string).toLowerCase() },
+      create: existing ? undefined : { visibility: "private", org: (body.org as string).toLowerCase(), orgId: body.orgId },
       allow: added,
       log: { by: `key ${admin.keyId}`, commit: manifest.commit, summary: body.summary },
     })

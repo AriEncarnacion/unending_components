@@ -15,7 +15,7 @@ import { namePattern } from "./shared/protocol.ts"
 import { keys, readState, type SystemState } from "./store.ts"
 import { lookupToken, stillMember } from "./tokens.ts"
 
-type Reader = { org: string } | null
+type Reader = { orgId: number } | null
 
 /** Who's asking: an org member with a valid registry token, or nobody in particular. */
 async function reader(request: Request, env: Env): Promise<Reader | Response> {
@@ -24,11 +24,11 @@ async function reader(request: Request, env: Env): Promise<Reader | Response> {
   const found = await lookupToken(env, token)
   if (!found) return fail(401, "The registry token is invalid or expired. Run /unending:login.")
   if (!(await stillMember(env, found.hash, found.record))) return fail(403, "That token's holder isn't an active member of its org.")
-  return { org: found.record.org }
+  return { orgId: found.record.orgId }
 }
 
 function allowed(system: SystemState, who: Reader) {
-  return system.visibility === "public" || (who !== null && system.org === who.org)
+  return system.visibility === "public" || (who !== null && system.orgId !== undefined && system.orgId === who.orgId)
 }
 
 export async function handleRead(request: Request, env: Env, path: string[]): Promise<Response> {
@@ -76,8 +76,10 @@ export async function handleRead(request: Request, env: Env, path: string[]): Pr
 export async function handleSystems(request: Request, env: Env): Promise<Response> {
   const token = bearer(request)
   if (token && githubTokenPattern.test(token)) return fail(401, "The registry never takes a GitHub token.")
-  const who = await reader(request, env)
-  if (who instanceof Response) return who
+  // A refused token still sees the public systems, with a note saying why the private ones are missing.
+  const found = await reader(request, env)
+  const who = found instanceof Response ? null : found
+  const refused = found instanceof Response ? ((await found.json()) as { error: string }).error : undefined
   const { state } = await readState(env)
   const origin = new URL(request.url).origin
   const systems = Object.entries(state.systems)
@@ -89,5 +91,5 @@ export async function handleSystems(request: Request, env: Env): Promise<Respons
       version: s.current,
       url: `${origin}/r/${id}/{name}.json`,
     }))
-  return json({ systems })
+  return json({ systems, ...(refused ? { tokenRefused: refused } : {}) })
 }

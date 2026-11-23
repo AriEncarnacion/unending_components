@@ -78,7 +78,8 @@ export async function verifyOidc(token: string, env: Env): Promise<Claims | stri
   if (claims.nbf !== undefined && claims.nbf > now + 60) return "not yet valid"
   if (claims.repository_id !== env.GITHUB_REPOSITORY_ID) return "wrong repository"
   if (claims.ref !== "refs/heads/main") return "not main"
-  if (claims.event_name !== "push") return "not a push"
+  // A push to main, or a run started by hand on main (which needs write access to the repo).
+  if (claims.event_name !== "push" && claims.event_name !== "workflow_dispatch") return "not a push or a run on main"
   if (claims.job_workflow_ref !== `${env.GITHUB_REPOSITORY}/${WORKFLOW}@refs/heads/main`) return "wrong workflow"
   if (typeof claims.sha !== "string" || !/^[0-9a-f]{40}$/.test(claims.sha)) return "no commit"
   if (typeof claims.jti !== "string" || !/^[A-Za-z0-9_-]{8,100}$/.test(claims.jti)) return "no token id"

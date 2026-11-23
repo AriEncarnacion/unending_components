@@ -17,8 +17,10 @@ export type Visibility = "public" | "private"
 export type SystemState = {
   name: string
   visibility: Visibility
-  /** For private systems: the GitHub org whose active members may read it. */
+  /** For private systems: the GitHub org whose active members may read it (its login, for display), */
   org?: string
+  /** and its numeric id, which is what access is checked against. */
+  orgId?: number
   /** The version served at /r/<system>/... */
   current: number
   /** The newest version written. */

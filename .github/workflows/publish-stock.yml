@@ -15,6 +15,8 @@ on:
       - "public/r/*.json"
       - "scripts/publish-stock.mjs"
       - ".github/workflows/publish-stock.yml"
+  # The first publish after deploying, or any time: Actions → Publish Stock → Run workflow (main only).
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -26,7 +28,7 @@ concurrency:
 jobs:
   publish:
     name: Publish Stock
-    if: github.repository_id == 1467395964 && vars.REGISTRY_URL != ''
+    if: github.repository_id == 1467395964 && github.ref == 'refs/heads/main' && vars.REGISTRY_URL != ''
     runs-on: ubuntu-latest
     permissions:
       contents: read

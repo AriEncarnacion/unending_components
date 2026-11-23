@@ -61,18 +61,19 @@ describe("shipping", () => {
   it("ships a first version, private to an org, and serves it only with a token", async () => {
     const response = await ship(key, e, 1)
     expect(response.status, await response.clone().text()).toBe(201)
-    expect(await response.json()).toMatchObject({ system: "jade", current: 1, latest: 1, visibility: "private", org: "acme" })
+    expect(await response.json()).toMatchObject({ system: "jade", current: 1, latest: 1, visibility: "private", org: "acme", orgId: 1234 })
     expect((await call(new Request(`${ORIGIN}/r/jade/theme.json`), e)).status).toBe(401)
     const listed = (await (await call(new Request(`${ORIGIN}/systems.json`), e)).json()) as { systems: unknown[] }
     expect(listed.systems).toEqual([])
   })
 
-  it("needs an org on a first ship", async () => {
+  it("needs an org and its id on a first ship", async () => {
     expect((await call(await shipRequest(key, await shipBody(key, 1)), e)).status).toBe(400)
+    expect((await call(await shipRequest(key, await shipBody(key, 1, sampleFiles(), { org: "acme" })), e)).status).toBe(400)
   })
 
   it("refuses a reserved id", async () => {
-    const shipment = await shipBody(key, 1, sampleFiles(sampleItems(), "stock"), { org: "acme" }, "stock")
+    const shipment = await shipBody(key, 1, sampleFiles(sampleItems(), "stock"), { org: "acme", orgId: 1234 }, "stock")
     expect((await call(await shipRequest(key, shipment, "stock"), e)).status).toBe(400)
   })
 
@@ -86,7 +87,7 @@ describe("shipping", () => {
   })
 
   it("refuses a file that doesn't match the release", async () => {
-    const shipment = await shipBody(key, 1, sampleFiles(), { org: "acme" })
+    const shipment = await shipBody(key, 1, sampleFiles(), { org: "acme", orgId: 1234 })
     shipment.body.files["r/theme.json"] = shipment.body.files["r/theme.json"].replace("Test theme", "Other theme")
     expect((await call(await shipRequest(key, shipment), e)).status).toBe(400)
   })
@@ -94,12 +95,12 @@ describe("shipping", () => {
   it("refuses a release signed by a different key", async () => {
     const other = await makeKey()
     const both = testEnv({ ADMIN_KEYS: `${key.publicKey},${other.publicKey}` })
-    const shipment = await shipBody(other, 1, sampleFiles(), { org: "acme" })
+    const shipment = await shipBody(other, 1, sampleFiles(), { org: "acme", orgId: 1234 })
     expect((await call(await shipRequest(key, shipment), both)).status).toBe(400)
   })
 
   it("refuses a ship without its release signature, or with a wrong one", async () => {
-    const shipment = await shipBody(key, 1, sampleFiles(), { org: "acme" })
+    const shipment = await shipBody(key, 1, sampleFiles(), { org: "acme", orgId: 1234 })
     expect((await call(await signed(key, "POST", "/admin/systems/jade/versions", shipment.body), e)).status).toBe(400)
     const forged = { ...shipment, releaseSignature: await key.sign("something else") }
     expect((await call(await shipRequest(key, forged), e)).status).toBe(400)
@@ -112,7 +113,7 @@ describe("shipping", () => {
     for (const [path, content] of Object.entries(files))
       (path.startsWith("r/") ? items : source)[path.replace(/^(r|src)\//, "")] = await sha256Hex(content)
     const payload = manifestPayload({ format: RELEASE_FORMAT, system: "other", version: 1, createdAt: new Date().toISOString(), items, source })
-    const body = { version: 1, name: "Jade", org: "acme", files, release: { payload, keyId: key.keyId } }
+    const body = { version: 1, name: "Jade", org: "acme", orgId: 1234, files, release: { payload, keyId: key.keyId } }
     const shipment = { body, releaseSignature: await key.sign(releaseMessage(payload)) }
     expect((await call(await shipRequest(key, shipment), e)).status).toBe(400)
   })

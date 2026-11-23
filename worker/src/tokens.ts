@@ -12,7 +12,8 @@ import { keys } from "./store.ts"
 export const TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000
 export const tokenPattern = /^unr_[A-Za-z0-9_-]{43}$/
 
-export type TokenRecord = { userId: number; org: string; createdAt: string; expiresAt: string; gh: string }
+/** `org` is the login the holder logged in with; `orgId` is what access is checked against. */
+export type TokenRecord = { userId: number; org: string; orgId: number; createdAt: string; expiresAt: string; gh: string }
 
 export const GITHUB_API = "https://api.github.com"
 const githubHeaders = (token: string) => ({
@@ -78,13 +79,23 @@ export async function revokeToken(env: Env, token: string) {
   return true
 }
 
-/** Asks GitHub whether a user is an active member of an org. Throws if GitHub can't answer. */
-export async function checkMembership(githubToken: string, org: string): Promise<boolean> {
-  const response = await fetch(`${GITHUB_API}/user/memberships/orgs/${encodeURIComponent(org)}`, { headers: githubHeaders(githubToken) })
-  if (response.status === 404 || response.status === 403 || response.status === 401) return false
+/**
+ * Asks GitHub whether a user is an active member of an org, and returns the
+ * org's numeric id when they are. Throws if GitHub can't answer, including a
+ * rate limit, so callers fail closed without caching a wrong "no".
+ */
+export async function checkMembership(githubToken: string, org: string): Promise<{ active: boolean; orgId?: number }> {
+  const response = await fetch(`${GITHUB_API}/user/memberships/orgs/${encodeURIComponent(org)}`, {
+    headers: githubHeaders(githubToken),
+    redirect: "manual",
+  })
+  const limited = response.headers.get("x-ratelimit-remaining") === "0" || response.headers.has("retry-after")
+  if ((response.status === 403 || response.status === 429) && limited) throw new Error("GitHub rate limit")
+  if (response.status === 404 || response.status === 403 || response.status === 401) return { active: false }
   if (!response.ok) throw new Error(`GitHub answered ${response.status}`)
-  const body = (await response.json()) as { state?: string }
-  return body.state === "active"
+  const body = (await response.json()) as { state?: string; organization?: { id?: number } }
+  const orgId = body.organization?.id
+  return body.state === "active" && Number.isSafeInteger(orgId) ? { active: true, orgId } : { active: false }
 }
 
 export async function githubUser(githubToken: string) {
@@ -94,7 +105,7 @@ export async function githubUser(githubToken: string) {
 }
 
 const DAY = 24 * 60 * 60
-const membershipCacheKey = (hash: string, org: string) => `https://membership.unending.internal/${hash}/${encodeURIComponent(org)}`
+const membershipCacheKey = (hash: string, orgId: number) => `https://membership.unending.internal/${hash}/${orgId}`
 
 /**
  * Whether a token's holder is still an active member of its org: from the
@@ -102,12 +113,15 @@ const membershipCacheKey = (hash: string, org: string) => `https://membership.un
  */
 export async function stillMember(env: Env, hash: string, record: TokenRecord): Promise<boolean> {
   const cache = await caches.open("membership")
-  const key = membershipCacheKey(hash, record.org)
+  if (!Number.isSafeInteger(record.orgId)) return false
+  const key = membershipCacheKey(hash, record.orgId)
   const cached = await cache.match(key)
   if (cached) return ((await cached.json()) as { active: boolean }).active
   let active: boolean
   try {
-    active = await checkMembership(await unseal(env, record.gh), record.org)
+    // Still a member of the same org: a reclaimed login has a different id.
+    const answer = await checkMembership(await unseal(env, record.gh), record.org)
+    active = answer.active && answer.orgId === record.orgId
   } catch {
     return false
   }
