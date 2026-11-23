@@ -23,7 +23,7 @@ import { toCss } from "@/lib/palette"
 import { baseTokens } from "@/lib/tokens"
 
 import { useDesignSystems } from "./provider"
-import { ShipBadge, ShipProvider } from "./ship"
+import { PullButton, ShipBadge, ShipProvider } from "./ship"
 import { DeleteDialog, MigrationDialog, NewSystemDialog, RenameDialog, UnsavedDot } from "./switcher"
 
 type Dialog =
@@ -183,6 +183,7 @@ export function SystemsHome({ fonts }: { fonts: FontOption[] }) {
             </span>
             <div className="flex items-center gap-1.5">
               <ThemeToggle />
+              <PullButton />
               <Button size="sm" onClick={() => open({ kind: "new" })}>
                 <PlusIcon data-icon="inline-start" />
                 New design system

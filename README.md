@@ -23,30 +23,32 @@ Open <http://localhost:3000>. The dev server listens on 127.0.0.1 only, so nothi
 
 **Design system** (`/system`) shows every token the catalog is built on, live, and says what uses each one: colour (both schemes, with WCAG contrast), type, spacing, radius, elevation, motion curves and durations, control sizes and breakpoints. A tuner adjusts colours in OKLCH, the radius, the spacing unit, fonts and the default motion. Changes apply across the whole showcase in your browser, and "Export CSS" gives the blocks to paste into `app/globals.css`.
 
-**Design systems.** The catalog curates several design systems; the home page lists them and the URL picks the one every page shows. Stock shadcn is the read-only base. Each system stores only its differences in `design-systems/<id>/`: its palette, token and theme changes in `system.json`, and per-entry tuning in `entries/<name>.json` (scoped tokens, motion and prop defaults from the entry's knobs). Edits are drafts in your browser, one per system; **Save** writes the files on the dev server, and **Ship** puts them on GitHub (below). Each entry page has a tuning inspector for the active system. `npm run registry:build` bakes every system into its own registry (`public/r/<id>/`), so an app linked to one system with `/unending:setup` installs plain components with that system's values written in. After that the app owns them; `/unending:sync` pulls later changes on request.
+**Design systems.** The catalog curates several design systems; the home page lists them and the URL picks the one every page shows. Stock shadcn is the read-only base. Each system stores only its differences in `design-systems/<id>/`: its palette, token and theme changes in `system.json`, and per-entry tuning in `entries/<name>.json` (scoped tokens, motion and prop defaults from the entry's knobs). Edits are drafts in your browser, one per system; **Save** writes the files on the dev server, and **Ship** puts them on the registry (below). `design-systems/` is git-ignored: systems never enter this public repo. Each entry page has a tuning inspector for the active system. Ship bakes a system into its own registry, so an app linked to it with `/unending:setup` installs plain components with that system's values written in. After that the app owns them; `/unending:sync` pulls later changes on request.
 
 **Palette** (`/palette`) is for grading the raw colour scales: the jade key colours and 12-step scales, the verdant green and jet black scales, and your live background, primary and foreground. Edit any step in OKLCH, drag the lightness, chroma and hue curves, build a scale from a key colour, and check contrast (WCAG and APCA), colour-vision and usage. Hide scales you aren't working on, undo with ⌘Z, push a step into a theme token, and export as Tailwind `@theme`, CSS variables or JSON. It also has neutral and status scales (danger, warning, success, info) tuned to sit with the jade palette. **Theme presets** (on `/palette` and in the `/system` tuner) map the scales onto every shadcn colour token in both schemes and walk each scale until text, controls, focus rings and charts meet their contrast targets; recipes live in `lib/theme-presets.ts`. The tuner's Colour section also offers every visible palette step as a one-click value. The palette is kept in your browser; seeds live in `lib/palette.ts`.
 
 ## Ship a design system
 
-**Ship** (next to Save in the sidebar) is one action in the catalog and a pull request behind it. It saves the system, builds the registry from it in a clean copy of `main` (so nothing else on your machine is included), pushes `ship/<id>`, and opens a PR (or updates the open one). Two checks run on the PR: **CI** (lint, `registry:check`, build, typecheck) and **Claude review** (`.github/workflows/claude-review.yml`, which fails when it finds a blocking problem). When both pass, the catalog squash-merges the PR and, if you're on `main` with nothing else changed in those files, fast-forwards your local `main`. When either fails, the PR stays open and the Ship panel shows the findings; fix them and Ship again, which updates the same PR. Deleting a shipped system ships its removal the same way.
+**Ship** (next to Save in the sidebar) builds the system's registry from your saved files, checks it with the registry's own upload rules, signs it and uploads it straight to the registry at `https://registry.unending.studio`. There's no branch, PR or Actions run, so nothing about a system ever appears in this public repo or its logs.
 
-It needs, once:
+- **Signed on your Mac.** Each ship is signed by a key in this Mac's Secure Enclave, and macOS asks for Touch ID every time. The registry only accepts keys you enrolled. Set this up once per Mac with **Ship → Set up this Mac**; see `worker/README.md`.
+- **Versions never change.** The registry numbers versions in order and writes each one once. Ship can also serve an earlier version (roll back) without rebuilding anything.
+- **Private by default.** A system's first ship names the GitHub org whose active members may read it. Public systems come with the visibility controls, later.
+- **New npm packages need your OK.** The registry keeps an allowlist. When a ship would install a package it hasn't seen, Ship lists them and asks before allowing them.
+- **Review first** (optional) runs a local Claude review of what changed since the last ship, and stops the ship if it finds something to fix.
+- **Pull** (on the home page) fetches every system's current version from the registry, checks its signature, and saves it here. Use it on a new Mac.
 
-- The GitHub repo, with this code on `main`, and `gh auth login` on this machine.
-- The Claude review's token: run `/install-github-app` in Claude Code (it installs the Claude GitHub App and adds `CLAUDE_CODE_OAUTH_TOKEN`), or run `claude setup-token` and `gh secret set CLAUDE_CODE_OAUTH_TOKEN` yourself.
-
-The Ship panel lists whatever is still missing. Shipping runs from the dev server only; the job and its log live in `.generated/ship/`.
+Every ship emails you. The registry Worker, its deploy steps and recovery when a Mac goes away are in [`worker/`](worker/README.md).
 
 ## Install an entry in another project
 
-This repo is the registry. It's private. Link the project to a design system first with `/unending:setup` (from the plugin below): it points the `@unending` namespace at that system's build and installs its theme, fonts and design rules. Then:
+Use the plugin (below). In a Claude session opened on the project:
 
-```bash
-npx shadcn@4.23.0 add @unending/timeline-scrubber
-```
+1. `/unending:login <org>` once, for an org's private system. It gets a read-only token, saved in the project's git-ignored `.env.local`.
+2. `/unending:setup` links the project to one design system and installs its theme, fonts and design rules.
+3. Ask for the UI you need, or for an entry by name.
 
-The entry arrives tuned for the linked system, as plain code the project owns. `/unending:sync` shows what changed in the catalog later and pulls what you approve. Installing with the GitHub address (`AriEncarnacion/unending_components/<name>`) still works through your `gh` login, and gives the untuned source.
+The plugin checks each release's signature against the keys pinned in `plugin/keys.json`, and every file's hash, before anything installs. Stock is checked against this repo's `main` instead. Plain `npx shadcn add @unending/<name>` also works once a project is linked, but skips those checks, so prefer the plugin. Installing with the GitHub address (`AriEncarnacion/unending_components/<name>`) gives the untuned source.
 
 ## Claude Code and Cowork plugin
 
@@ -54,7 +56,7 @@ The entry arrives tuned for the linked system, as plain code the project owns. `
 
 - **`unending-catalog` skill:** checks the catalog for a matching intent before Claude builds UI, then installs the entry.
 - **`unending-flavor` skill and `flavor-reviewer` agent:** keep new UI on the design system and review it against the rules.
-- **`unending-authoring` skill and commands:** `/unending:create`, `/unending:capture`, `/unending:harvest` and `/unending:restyle` grow the catalog. `/unending:setup` links a project to a design system, and `/unending:sync` pulls later changes into it.
+- **`unending-authoring` skill and commands:** `/unending:create`, `/unending:capture`, `/unending:harvest` and `/unending:restyle` grow the catalog. `/unending:login` gets a read-only token for an org's private systems, `/unending:setup` links a project to a design system, and `/unending:sync` pulls later changes into it.
 - **shadcn MCP server:** lets any agent search, view and add entries once a project has the `@unending` namespace.
 
 To install it in Claude Code:
@@ -67,20 +69,21 @@ claude plugin marketplace add AriEncarnacion/unending_components
 claude plugin install unending@unending
 ```
 
-To use it everywhere, including Cowork and chat, add the repo as a marketplace at claude.ai under Customize → Plugins. It syncs to Claude Code too. The repo is private, so it has to be added by its GitHub repo (with the Claude GitHub App given access), not by a raw URL to `marketplace.json`.
+To use it everywhere, including Cowork and chat, add the repo as a marketplace at claude.ai under Customize → Plugins. It syncs to Claude Code too.
 
 ## How it fits together
 
 ```
 app/globals.css ──registry:theme──▶ registry.json "theme" item (Stock)
 registry/unending/<name>/          component + demo.tsx + README.md + knobs.ts
-design-systems/<id>/               system.json + entries/<name>.json (saved from the tuner)
+design-systems/<id>/               system.json + entries/<name>.json (saved from the tuner; git-ignored)
 registry.json ──registry:index────▶ plugin/skills/unending-catalog/references/catalog.md
-registry.json + design-systems ──registry:systems──▶ public/r/*.json (Stock), public/r/<id>/*.json (each system, entries baked)
+registry.json ──registry:systems──▶ public/r/*.json (Stock) ──publish-stock.yml──▶ registry /r/stock/
+design-systems/<id> ──Ship (signed)──▶ registry /r/<id>/ (each system, entries baked)
 ```
 
 ```bash
-npm run registry:build   # regenerate the theme item, plugin catalog index and public/r (Stock + every system)
+npm run registry:build   # regenerate the theme item, plugin catalog index and public/r (Stock); check local systems
 npm run registry:check   # fail if any of those are stale or the registry is invalid
 ```
 

@@ -29,7 +29,7 @@ Then register it:
 
 ## Design systems
 
-Design systems live in `design-systems/<id>/` (`system.json`, plus `entries/<name>.json` for each entry tuned in that system). Ari tunes them in the showcase and saves them there; don't edit those files by hand unless asked.
+Design systems live in `design-systems/<id>/` (`system.json`, plus `entries/<name>.json` for each entry tuned in that system), on Ari's machine only: the folder is git-ignored, and Ship uploads systems straight to the registry host. Ari tunes them in the showcase and saves them there; don't edit those files by hand unless asked, and never commit them.
 
 After building a new entry, you may propose a tuning per system: write `design-systems/<id>/entries/<name>.proposed.json` (an entry tuning with a short `note` saying why), only where the system clearly calls for it (its radius, motion or palette). Scoped colours must be palette refs (`palette:jade-8`) or token refs (`token:accent`). Ari accepts or rejects each on `/c/<name>`; a rejected proposal leaves the entry untuned, which means it ships as it is.
 
@@ -49,4 +49,4 @@ npm run typecheck && npm run lint
 npm run dev              # open /c/<name> and try every example in light and dark, and at phone width
 ```
 
-`npm run registry:build` regenerates the theme item, the plugin's catalog index, `public/r/*.json` (Stock) and `public/r/<id>/*.json` (each design system, with entries baked). Run it and commit its output with the entry.
+`npm run registry:build` regenerates the theme item, the plugin's catalog index and `public/r/*.json` (Stock), and checks every local design system. Run it and commit its output with the entry. Design systems are built and uploaded by Ship, never committed.

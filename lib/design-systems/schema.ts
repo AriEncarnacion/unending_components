@@ -3,6 +3,7 @@
 // scripts (run with node --experimental-strip-types), so relative imports
 // here carry their .ts extension.
 import { STEPS, type KeyColor, type Scale } from "../palette.ts"
+import { reservedSystemIds as hostReservedIds } from "../../worker/src/shared/protocol.ts"
 import { fontById } from "./fonts.ts"
 
 export type SystemId = string
@@ -106,8 +107,8 @@ export type Draft = {
 
 export const STOCK_ID = "stock"
 
-/** Top-level paths a system id can't take, since systems live at /<id>/. */
-export const reservedSystemIds = [STOCK_ID, "api", "preview", "r", "fonts", "_next", "static", "new", "settings"]
+/** Ids a system can't take: top-level paths here (systems live at /<id>/), and the ones the registry refuses. */
+export const reservedSystemIds = [...new Set([STOCK_ID, "api", "preview", "r", "fonts", "_next", "static", "new", "settings", ...hostReservedIds])]
 
 /** Token names and prefixes a scale id may not take, so --<scale>-<n> never collides with a token. */
 export const reservedScaleIds = [

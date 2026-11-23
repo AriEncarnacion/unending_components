@@ -5,7 +5,7 @@ description: Finds and installs intent-level components from Ari's Unending cata
 
 # Using the Unending catalog
 
-Ari keeps a private catalog of **intent-level** components: pieces named for what a person is trying to do ("scrub through parallel schedules", "work on a file") rather than what they are ("slider", "toolbar"). Each entry is built from stock shadcn parts, and installs with the shadcn CLI from a private GitHub repo.
+Ari keeps a private catalog of **intent-level** components: pieces named for what a person is trying to do ("scrub through parallel schedules", "work on a file") rather than what they are ("slider", "toolbar"). Each entry is built from stock shadcn parts, and installs with the shadcn CLI from the Unending registry (`https://registry.unending.studio`), after this plugin verifies who released it.
 
 The catalog curates several **design systems**. A project is linked to exactly one (`/unending:setup` points the `@unending` namespace at it), and every entry it installs arrives already tuned for that system: plain code, no tuning layer. After install the project owns the code. Later catalog changes come only through `/unending:sync`.
 
@@ -21,22 +21,24 @@ The index can lag behind the repo. To see the live list, run `npx shadcn@4.23.0 
 
 ## 2. Install
 
-Install through the `@unending` namespace, which points at the project's design system. If `components.json` has no `@unending` registry, run `/unending:setup` first: it asks which design system the project uses.
+Install from the project's design system, verified. If `components.json` has no `@unending` registry, run `/unending:setup` first: it asks which design system the project uses. Private systems need `/unending:login` once per project.
 
 ```bash
-npx shadcn@4.23.0 view @unending/<name>   # inspect files and dependencies first
-npx shadcn@4.23.0 add @unending/<name>
+npx shadcn@4.23.0 view @unending/<name>                              # inspect files and dependencies first
+node ${CLAUDE_PLUGIN_ROOT}/scripts/unending.mjs fetch <system> <name>   # verify the release, download, print local paths
+npx shadcn@4.23.0 add <the printed paths>
 ```
 
-- Don't install with the GitHub address (`AriEncarnacion/unending_components/<name>`) in a linked project: that gives the untuned source, with a small `useEntryTuning` helper, instead of the system's baked version.
-- Every entry depends on `@unending/theme`. In a linked project it's normally installed already; if not, preview it with `--dry-run` / `--diff` before it rewrites the project's CSS variables.
+- The `fetch` step checks the release's signature against the keys pinned in this plugin, and every file's hash. If it refuses, stop and tell the user. Don't fall back to `npx shadcn add @unending/<name>`, which installs without that check.
+- It also prints the npm packages the entry brings. Mention any the project doesn't have yet.
+- Every entry depends on `theme`. In a linked project it's normally installed already; if `fetch` includes it, preview with `--dry-run` / `--diff` before it rewrites the project's CSS variables.
 - Follow `docs/design-system.md` in the project when building around the entry. It's the linked system's rules.
 - Entries install into `components/` (for example `components/timeline-scrubber.tsx`), and their shadcn dependencies install into `components/ui/`.
 - Read each entry's `docs` note after installing. Some need a provider, such as `TooltipProvider`, or a parent with an explicit height.
 
-The shadcn MCP server's search, view and add tools work with the `@unending` namespace too.
+The shadcn MCP server's search and view tools work with the `@unending` namespace too.
 
 ## 3. Use it well
 
-- Every entry's README in the repo (`registry/unending/<name>/README.md`) explains the anatomy, interactions, states and open questions. Read it before customizing: `gh api repos/AriEncarnacion/unending_components/contents/registry/unending/<name>/README.md -H "Accept: application/vnd.github.raw+json"`.
+- Every entry's README in the repo (`registry/unending/<name>/README.md`) explains the anatomy, interactions, states and open questions. Read it before customizing: `https://github.com/AriEncarnacion/unending_components/blob/main/registry/unending/<name>/README.md`.
 - Keep the entry's behavior (keyboard, reduced motion, states). The project owns its copy and can change it; if a change would help every project on the system, suggest it for the catalog too.
