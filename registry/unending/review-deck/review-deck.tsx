@@ -405,7 +405,9 @@ function ReviewDeck<T, A extends string = DefaultActionId>({
       onKeyDown={onKeyDown}
       data-slot="review-deck"
       className={cn(
-        "flex min-h-[30rem] flex-col gap-4 rounded-xl outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+        // A size container: the deck lays itself out by its own width, so it
+        // holds up in a sidebar, drawer or pane, not just a narrow window.
+        "@container/review-deck flex min-h-[30rem] flex-col gap-4 rounded-xl outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
         className
       )}
     >
@@ -417,7 +419,7 @@ function ReviewDeck<T, A extends string = DefaultActionId>({
       </span>
 
       <div className="flex min-h-8 items-center justify-between gap-2">
-        <span className="text-sm text-muted-foreground tabular-nums">
+        <span className="min-w-0 truncate text-sm whitespace-nowrap text-muted-foreground tabular-nums">
           {items.length > 0 ? copy.remaining(items.length) : null}
         </span>
         {onUndo ? (
@@ -430,7 +432,7 @@ function ReviewDeck<T, A extends string = DefaultActionId>({
           >
             <Undo2Icon data-icon="inline-start" />
             {copy.undo}
-            <Kbd className="ml-1 max-sm:hidden">Z</Kbd>
+            <Kbd className="ml-1 pointer-coarse:hidden @max-sm/review-deck:hidden">Z</Kbd>
           </Button>
         ) : null}
       </div>
@@ -534,10 +536,13 @@ function ReviewDeck<T, A extends string = DefaultActionId>({
         </p>
       ) : null}
 
-      <div className="grid grid-cols-3 gap-2">
+      {/* Narrow: the two sideways actions share a row and the down action sits
+          below them, which keeps each button where its drag goes. */}
+      <div className="grid grid-cols-2 gap-2 @md/review-deck:grid-cols-3">
         {(["left", "down", "right"] as const).map((direction) => {
           const action = byDirection(direction)
-          if (!action) return <span key={direction} />
+          // Holds the middle slot in the three-column row; not needed when narrow.
+          if (!action) return <span key={direction} className="hidden @md/review-deck:block" />
           return (
             <Button
               key={action.id}
@@ -546,11 +551,16 @@ function ReviewDeck<T, A extends string = DefaultActionId>({
               variant={tone[direction].button}
               disabled={action.disabled || locked || active === undefined}
               onClick={() => void decide(direction, "button")}
-              className="h-auto min-h-12 min-w-0 py-2 whitespace-normal"
+              className={cn(
+                "h-auto min-h-12 min-w-0 py-2",
+                direction === "down" && "order-last col-span-2 @md/review-deck:order-none @md/review-deck:col-span-1"
+              )}
             >
-              <span className="leading-tight text-balance">{action.label}</span>
+              <span className="min-w-0 truncate" title={action.label}>
+                {action.label}
+              </span>
               {action.shortcut ? (
-                <Kbd className="max-sm:hidden">{action.shortcut.toUpperCase()}</Kbd>
+                <Kbd className="pointer-coarse:hidden @max-sm/review-deck:hidden">{action.shortcut.toUpperCase()}</Kbd>
               ) : null}
             </Button>
           )

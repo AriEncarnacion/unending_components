@@ -58,7 +58,8 @@ function InspectorPanel({
       data-slot="inspector-panel"
       aria-label={kind ? `${kind} inspector` : "Inspector"}
       className={cn(
-        "flex min-h-0 w-full flex-col overflow-hidden rounded-xl border bg-card text-card-foreground",
+        // A size container: rows stack when the panel itself is narrow.
+        "@container/inspector-panel flex min-h-0 w-full flex-col overflow-hidden rounded-xl border bg-card text-card-foreground",
         className
       )}
       {...props}
@@ -179,26 +180,36 @@ type InspectorRowProps = Omit<React.ComponentProps<typeof Field>, "children"> & 
   children: React.ReactNode
 }
 
-/** A compact label-beside-control row, the inspector's unit of editing. */
+/**
+ * A compact label-beside-control row, the inspector's unit of editing. In a
+ * panel narrower than 24rem the label sits above the control, so neither the
+ * control nor its hint is squeezed.
+ */
 function InspectorRow({ label, htmlFor, hint, mixed, className, children, ...props }: InspectorRowProps) {
   return (
     <Field
       data-slot="inspector-row"
       data-mixed={mixed || undefined}
       orientation="horizontal"
-      className={cn("grid grid-cols-[6.5rem_minmax(0,1fr)] items-center gap-x-4 gap-y-1.5", className)}
+      className={cn(
+        "grid grid-cols-1 items-center gap-x-4 gap-y-1.5 @sm/inspector-panel:grid-cols-[6.5rem_minmax(0,1fr)]",
+        className
+      )}
       {...props}
     >
-      <FieldLabel htmlFor={htmlFor} className="text-xs font-normal text-muted-foreground">
-        {label}
+      {/* The badge wraps below as a whole rather than splitting the label. */}
+      <FieldLabel htmlFor={htmlFor} className="flex-wrap gap-x-1 gap-y-0.5 text-xs font-normal text-muted-foreground">
+        <span>{label}</span>
         {mixed ? (
-          <Badge variant="outline" className="ml-1 h-4 px-1 text-[0.6875rem] font-normal">
+          <Badge variant="outline" className="h-4 px-1 text-[0.6875rem] font-normal">
             mixed
           </Badge>
         ) : null}
       </FieldLabel>
       <div className="min-w-0">{children}</div>
-      {hint ? <FieldDescription className="col-start-2 text-xs">{hint}</FieldDescription> : null}
+      {hint ? (
+        <FieldDescription className="text-xs @sm/inspector-panel:col-start-2">{hint}</FieldDescription>
+      ) : null}
     </Field>
   )
 }
