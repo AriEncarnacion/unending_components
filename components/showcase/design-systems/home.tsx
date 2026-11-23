@@ -184,9 +184,10 @@ export function SystemsHome({ fonts }: { fonts: FontOption[] }) {
             <div className="flex items-center gap-1.5">
               <ThemeToggle />
               <PullButton />
-              <Button size="sm" onClick={() => open({ kind: "new" })}>
+              <Button size="sm" onClick={() => open({ kind: "new" })} aria-label="New design system">
                 <PlusIcon data-icon="inline-start" />
-                New design system
+                <span className="sm:hidden">New</span>
+                <span className="hidden sm:inline">New design system</span>
               </Button>
             </div>
           </div>

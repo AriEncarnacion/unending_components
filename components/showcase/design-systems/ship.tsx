@@ -72,6 +72,8 @@ export function ShipProvider({ children }: { children: React.ReactNode }) {
         if (job.state === "shipped") toast.success(job.action === "pull" ? "Pulled design systems" : `${job.systemName}: ${job.step}`, { description: job.note })
         if (job.state === "blocked") toast.error(`${job.systemName} didn't ship`, { description: job.step })
         if (job.state === "failed") toast.error(`${job.systemName}: that didn't work`, { description: job.error })
+        // A rollback rewrites the saved files on disk; reload so every page reads them.
+        if (job.action === "rollback" && job.state === "shipped") window.setTimeout(() => window.location.reload(), 1200)
       }
       previous.current[job.systemId] = job.state
     }
@@ -295,7 +297,7 @@ export function ShipButton({ className }: { className?: string }) {
                 </div>
                 <Button size="sm" disabled={firstShip && (!target.owner || !target.name)} onClick={() => void go()}>
                   <RocketIcon data-icon="inline-start" />
-                  {firstShip ? `Create ${target.owner}/${target.name}` : `Ship ${active.system.name}`}
+                  {firstShip ? "Create the repo and ship v1" : `Ship ${active.system.name}`}
                 </Button>
                 {versions.length ? (
                   <div className="flex flex-col gap-1.5 border-t pt-3">
