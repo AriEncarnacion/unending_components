@@ -5,17 +5,11 @@ import Link from "next/link"
 import { ExternalLinkIcon, XIcon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
-import { Skeleton } from "@/components/ui/skeleton"
+import { DemoView, hasDemo } from "@/components/showcase/demo-view"
 import { useDesignSystems } from "@/components/showcase/design-systems/provider"
 import { EntryTuner } from "@/components/showcase/design-systems/entry-tuner"
 import { Pane, PaneButton, useTunerOpen } from "@/components/showcase/pane"
-import { demos, getEntry } from "@/lib/catalog"
-
-// One lazy component per entry, made once so switching entries back and forth
-// doesn't reload a demo that has already loaded.
-const lazyDemos = Object.fromEntries(
-  Object.entries(demos).map(([name, load]) => [name, React.lazy(load)])
-)
+import { getEntry } from "@/lib/catalog"
 
 /**
  * An entry opened beside the design system: its demo, with its tuner floating
@@ -25,7 +19,6 @@ const lazyDemos = Object.fromEntries(
 export function EntryPane({ name, onClose }: { name: string; onClose: () => void }) {
   const { href } = useDesignSystems()
   const entry = getEntry(name)
-  const Demo = lazyDemos[name]
   const [tunerOpen, setTunerOpen] = useTunerOpen("entry")
 
   return (
@@ -55,26 +48,14 @@ export function EntryPane({ name, onClose }: { name: string; onClose: () => void
       tunerOpen={tunerOpen}
       onTunerOpenChange={setTunerOpen}
     >
-      {entry && Demo ? (
+      {entry && hasDemo(name) ? (
         <div className="flex flex-col gap-10 p-4 @xl:p-6">
-          <React.Suspense fallback={<DemoSkeleton />}>
-            <Demo key={name} />
-          </React.Suspense>
+          <DemoView name={name} />
         </div>
       ) : (
         <p className="p-4 text-sm text-muted-foreground">There’s no entry called “{name}”.</p>
       )}
     </Pane>
-  )
-}
-
-function DemoSkeleton() {
-  return (
-    <div className="flex flex-col gap-3">
-      <Skeleton className="h-5 w-40" />
-      <Skeleton className="h-4 w-72 max-w-full" />
-      <Skeleton className="h-64 w-full" />
-    </div>
   )
 }
 

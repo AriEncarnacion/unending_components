@@ -8,11 +8,12 @@ import { Separator } from "@/components/ui/separator"
 import { InstallCommand } from "@/components/showcase/install-command"
 import { Notes } from "@/components/showcase/notes"
 import { EntryPagePane } from "@/components/showcase/system/entry-pane"
-import { demos, entries, getEntry } from "@/lib/catalog"
+import { DemoView } from "@/components/showcase/demo-view"
+import { getEntry } from "@/lib/catalog"
 
-export function generateStaticParams() {
-  return entries.map((entry) => ({ name: entry.name }))
-}
+// No generateStaticParams: it only lists entry names, not systems, so nothing
+// was prerendered, and each page got cached on first visit. That froze the
+// layout's read of the design systems on disk in production.
 
 export async function generateMetadata({
   params,
@@ -31,10 +32,8 @@ export default async function EntryPage({
 }) {
   const { name } = await params
   const entry = getEntry(name)
-  const loadDemo = demos[name]
-  if (!entry || !loadDemo) notFound()
+  if (!entry) notFound()
 
-  const { default: Demo } = await loadDemo()
   const notes = await readFile(
     path.join(process.cwd(), "registry/unending", name, "README.md"),
     "utf8"
@@ -63,7 +62,7 @@ export default async function EntryPage({
         </header>
   
         <div className="flex min-w-0 flex-col gap-10">
-          <Demo />
+          <DemoView name={entry.name} />
         </div>
   
         {notes ? (

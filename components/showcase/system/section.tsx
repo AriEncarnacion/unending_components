@@ -30,7 +30,7 @@ export function Section({
   return (
     <section id={id} className={cn("flex scroll-mt-16 flex-col gap-6", className)}>
       <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
-        <div className="flex max-w-2xl flex-col gap-1.5">
+        <div className="flex max-w-2xl min-w-0 flex-1 basis-72 flex-col gap-1.5">
           <h2 className="text-2xl font-semibold tracking-tight text-balance">{title}</h2>
           {description ? <p className="text-sm text-muted-foreground text-pretty">{description}</p> : null}
         </div>
