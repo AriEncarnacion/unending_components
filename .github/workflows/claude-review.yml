@@ -36,20 +36,13 @@ jobs:
             PR NUMBER: ${{ github.event.pull_request.number }}
             BASE: ${{ github.event.pull_request.base.ref }}
 
-            You are reviewing a pull request to the Unending catalog, a private shadcn registry of
-            intent-level components and the design systems built on them. Read CLAUDE.md and
-            README.md first; they state the invariants.
+            You are reviewing a pull request to the Unending catalog, a public, local-only tool and
+            shadcn registry of intent-level components. Design systems live in their own repos, never
+            here. Read CLAUDE.md and README.md first; they state the invariants.
 
-            Most PRs here come from "Ship" in the catalog: they change design-systems/<id>/ and the
-            files `npm run registry:build` regenerates (public/r/, the theme item in registry.json,
-            plugin/skills/unending-catalog/references/catalog.md). For those, check:
-            - Only those paths changed. Anything else in a Ship PR is a blocking problem.
-            - design-systems JSON is well formed: palette refs (palette:<scale>-<1..12>) name scales
-              in the same system, entry tunings use only palette or token refs for colours (no raw
-              colours), and knob keys exist in that entry's knobs.ts.
-            - Baked entries in public/r/<id>/ contain no useEntryTuning call and no "@/lib/tuning" import.
-            - Nothing secret, licensed (for example Graphik font files) or machine-specific is included.
-            For other PRs, review the code for correctness bugs, broken invariants and security issues.
+            Review the code for correctness bugs, broken invariants and security issues. Treat any
+            committed design-systems/ file, secret, licensed file (for example Graphik font files) or
+            machine-specific path as a blocking problem.
 
             Use `gh pr diff` and `gh pr view` to read the change. Then post exactly one PR comment with
             `gh pr comment`, starting with "**Claude review: pass**" or "**Claude review: changes needed**",

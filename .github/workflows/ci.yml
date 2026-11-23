@@ -25,14 +25,6 @@ jobs:
         run: npm run registry:check
       - run: npm run build
       - run: npm run typecheck
-      - name: Plugin verifies releases
-        run: node --test plugin/scripts/unending.test.mjs
-      - name: Registry Worker
-        working-directory: worker
-        run: |
-          npm ci
-          npm run typecheck
-          npm test
 
   denylist:
     name: Denylist

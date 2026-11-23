@@ -1,41 +1,38 @@
-// Builds installable registries from the files the tuner saves. Each entry is
-// baked: its useEntryTuning(...) call becomes a plain object with the
-// system's values, so an app receives an ordinary component with no tuning
-// layer.
+// Builds a design system into its own GitHub repo, from the files the tuner
+// saves. Each entry is baked: its useEntryTuning(...) call becomes a plain
+// object with the system's values, so an app receives an ordinary component
+// with no tuning layer.
 //
-//   public/r/*.json   Stock, committed and published to the registry by CI
-//   --system <id> --out <dir>
-//                     one design system from design-systems/<id>/, for Ship.
-//                     Systems never go into the repo: Ship uploads them
-//                     straight to the registry host.
+//   (no flags)   checks the entries' knobs and every local design system
+//   --system <id> --address <owner/repo> --version <n>
+//                builds design-systems/<id>/ (a clone of the system's repo)
+//                into a shadcn GitHub registry: registry.json at the root
+//                plus the baked files. Same-repo dependencies are pinned to
+//                owner/repo/<item>#v<n>, so a version only pulls its own items.
 //
-// Every build also runs the registry Worker's own upload checks, so a build
-// that passes here won't be refused there for its shape.
-//
-// Run with: node --experimental-strip-types scripts/build-systems.ts [--check]
-import { execFileSync } from "node:child_process"
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs"
-import { tmpdir } from "node:os"
+// Run with: node --experimental-strip-types scripts/build-systems.ts [...]
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import path from "node:path"
 import ts from "typescript"
 
-import { readCommitted } from "../lib/design-systems/load.ts"
+import { readCommitted, systemsDir } from "../lib/design-systems/load.ts"
 import { fontById, stockFonts } from "../lib/design-systems/fonts.ts"
 import { paletteVars, scopedSelectors, scopedVars, toVar } from "../lib/design-systems/resolve.ts"
 import { parsePaletteRef, validate, type Knob, type SystemFile, type Working } from "../lib/design-systems/schema.ts"
-import { checkBundle } from "../worker/src/shared/validate.ts"
 
 const root = process.cwd()
-const check = process.argv.includes("--check")
 const argument = (flag: string) => {
   const at = process.argv.indexOf(flag)
   return at === -1 ? undefined : process.argv[at + 1]
 }
 const onlySystem = argument("--system")
-const outDir = argument("--out")
+const address = argument("--address")
+const version = argument("--version")
 const registry = JSON.parse(readFileSync(path.join(root, "registry.json"), "utf8"))
 const ADDRESS = new URL(registry.homepage).pathname.slice(1)
-const NS = "@unending"
+
+/** Built files and folders in a system repo. Everything else (system.json, entries/, .git) is source. */
+const BUILT = ["registry.json", "registry", "docs", "eslint", "README.md"]
 
 // Registry items are loose JSON; the shadcn build validates them.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -226,7 +223,7 @@ function themeFor(working: Working | null) {
     description: system
       ? `The ${system.name} design system's tokens, palette and fonts. Every entry depends on it.`
       : themeItem.description,
-    registryDependencies: fontItems(system).map((font) => `${NS}/${font.name}`),
+    registryDependencies: [] as string[],
     cssVars: { theme, light, dark },
   }
   if (Object.keys(rootVars).length) item.css = { "@layer base": { ":root": rootVars } }
@@ -271,17 +268,22 @@ function designRules(working: Working | null) {
   return lines.join("\n")
 }
 
-// ── Building one registry ───────────────────────────────────────────────────
+// ── Building one system repo ────────────────────────────────────────────────
 
-function buildOne(working: Working | null, outDir: string, staging: string) {
-  rmSync(staging, { recursive: true, force: true })
-  mkdirSync(staging, { recursive: true })
+/** A same-repo dependency, pinned to this version. */
+const pinned = (repo: string, n: string, item: string) => `${repo}/${item}#v${n}`
+
+function buildRepo(working: Working, dir: string, repo: string, n: string) {
+  for (const built of BUILT) rmSync(path.join(dir, built), { recursive: true, force: true })
   const out: Item[] = []
+  const pin = (item: string) => pinned(repo, n, item)
 
-  out.push(themeFor(working))
-  out.push(...fontItems(working?.system ?? null))
+  const theme = themeFor(working)
+  theme.registryDependencies = fontItems(working.system).map((font) => pin(font.name))
+  out.push(theme)
+  out.push(...fontItems(working.system))
 
-  writeFile(staging, "docs/design-system.md", designRules(working))
+  writeFile(dir, "docs/design-system.md", designRules(working))
   out.push({
     name: "design-rules",
     type: "registry:file",
@@ -289,7 +291,7 @@ function buildOne(working: Working | null, outDir: string, staging: string) {
     description: "How UI in this app uses the design system: semantic colour, status colour, shape, type and motion. Point your agents at it.",
     files: [{ path: "docs/design-system.md", type: "registry:file", target: "~/docs/design-system.md" }],
   })
-  writeFile(staging, "eslint/unending-colors.mjs", readFileSync(path.join(root, "scripts/templates/unending-colors.mjs"), "utf8"))
+  writeFile(dir, "eslint/unending-colors.mjs", readFileSync(path.join(root, "scripts/templates/unending-colors.mjs"), "utf8"))
   out.push({
     name: "lint-colors",
     type: "registry:file",
@@ -300,10 +302,10 @@ function buildOne(working: Working | null, outDir: string, staging: string) {
   })
 
   for (const item of entryItems) {
-    const tuning = working?.entries[item.name]
+    const tuning = working.entries[item.name]
     const files = (item.files as { path: string; type: string; target?: string }[]).map((file) => {
       const source = readFileSync(path.join(root, file.path), "utf8")
-      writeFile(staging, file.path, bake(source, file.path, tuning?.knobs ?? {}))
+      writeFile(dir, file.path, bake(source, file.path, tuning?.knobs ?? {}))
       return file
     })
     const built: Item = {
@@ -311,9 +313,9 @@ function buildOne(working: Working | null, outDir: string, staging: string) {
       files,
       registryDependencies: (item.registryDependencies as string[])
         .filter((dep) => dep !== `${ADDRESS}/tuning`)
-        .map((dep) => (dep.startsWith(`${ADDRESS}/`) ? `${NS}/${dep.slice(ADDRESS.length + 1)}` : dep)),
+        .map((dep) => (dep.startsWith(`${ADDRESS}/`) ? pin(dep.slice(ADDRESS.length + 1)) : dep)),
     }
-    if (tuning && working) {
+    if (tuning) {
       const vars = scopedVars(tuning, working.system.palette, "var")
       const selectors = scopedSelectors(item.name)
       const rules: Record<string, Record<string, string>> = {}
@@ -325,32 +327,51 @@ function buildOne(working: Working | null, outDir: string, staging: string) {
     out.push(built)
   }
 
-  // Last line of defence: the shadcn CLI writes CSS values into consumers'
-  // stylesheets as-is, so no value may be able to close or open a rule.
+  // The shadcn CLI writes CSS values into consumers' stylesheets as-is, so no
+  // value may be able to close or open a rule.
   for (const item of out)
     for (const [where, value] of cssLeaves({ cssVars: item.cssVars, css: item.css }))
-      if (/[;{}]/.test(value)) {
-        console.error(`${item.name}: CSS value at ${where} contains ; { or }, which would break out of its rule.`)
-        process.exit(1)
-      }
+      if (/[;{}]/.test(value)) problems.push(`${item.name}: CSS value at ${where} contains ; { or }, which would break out of its rule.`)
 
   const reg = {
     $schema: "https://ui.shadcn.com/schema/registry.json",
-    name: registry.name,
-    homepage: registry.homepage,
+    name: working.system.id,
+    homepage: `https://github.com/${repo}`,
     items: out,
   }
-  writeFileSync(path.join(staging, "registry.json"), JSON.stringify(reg, null, 2) + "\n")
-  mkdirSync(outDir, { recursive: true })
-  try {
-    execFileSync("npx", ["shadcn", "build", path.join(staging, "registry.json"), "--output", outDir, "--cwd", staging], {
-      stdio: "pipe",
-    })
-  } catch (error) {
-    const e = error as { stdout?: Buffer; stderr?: Buffer }
-    console.error(`shadcn build failed for ${path.basename(staging)}:\n${e.stdout ?? ""}${e.stderr ?? ""}`)
-    process.exit(1)
-  }
+  writeFileSync(path.join(dir, "registry.json"), JSON.stringify(reg, null, 2) + "\n")
+  writeFileSync(path.join(dir, "README.md"), readme(working, repo, n, out))
+  const ignore = path.join(dir, ".gitignore")
+  if (!existsSync(ignore)) writeFileSync(ignore, "# Tuning proposals stay in the catalog until accepted.\nentries/*.proposed.json\n.DS_Store\n")
+}
+
+function readme(working: Working, repo: string, n: string, items: Item[]) {
+  const entries = items.filter((item) => item.meta?.entry)
+  return [
+    `# ${working.system.name}`,
+    "",
+    `A design system from the [Unending catalog](https://github.com/${ADDRESS}), built as a [shadcn registry](https://ui.shadcn.com/docs/registry/github). Version ${n}.`,
+    "",
+    "## Install",
+    "",
+    "With the Unending plugin for Claude Code, run `/unending:setup` in your app and pick this repo. Or install directly, pinned to a version:",
+    "",
+    "```bash",
+    `npx shadcn@4.23.0 add ${pinned(repo, n, "theme")} ${pinned(repo, n, "design-rules")}`,
+    `npx shadcn@4.23.0 add ${pinned(repo, n, entries[0]?.name ?? "theme")}`,
+    "```",
+    "",
+    "Private repos install with your own `gh auth login`.",
+    "",
+    "## Entries",
+    "",
+    "| Entry | Intent |",
+    "| --- | --- |",
+    ...entries.map((item) => `| \`${item.name}\` | ${item.meta.intent} |`),
+    "",
+    "Generated by Ship. Edit the system in the catalog, not here: `system.json` and `entries/` are its source, and everything else is rebuilt on every ship.",
+    "",
+  ].join("\n")
 }
 
 /** Every string value in a nested CSS object, with its path. */
@@ -368,26 +389,20 @@ function writeFile(base: string, relative: string, content: string) {
 
 // ── Main ────────────────────────────────────────────────────────────────────
 
-function listFiles(dir: string): string[] {
-  if (!existsSync(dir)) return []
-  return readdirSync(dir).filter((name) => statSync(path.join(dir, name)).isFile())
-}
-
-/** Runs the registry Worker's upload checks on a built registry. Packages are checked against the live allowlist at upload. */
-function hostCheck(dir: string, label: string) {
-  const files: Record<string, string> = {}
-  for (const name of listFiles(dir).filter((f) => f.endsWith(".json"))) files[`r/${name}`] = readFileSync(path.join(dir, name), "utf8")
-  for (const problem of checkBundle(files, []).problems) problems.push(`${label} ${problem}`)
-}
-
 const knobs = await loadKnobs()
 checkKnobDefaults(knobs)
 const systems = (await readCommitted()).filter((c) => !onlySystem || c.system.id === onlySystem)
 if (onlySystem && !systems.length) problems.push(`design-systems/${onlySystem}: no such saved system`)
-for (const committed of systems) {
+for (const committed of systems)
   for (const issue of validate(committed, stock, knobs)) problems.push(`design-systems/${issue.where}: ${issue.message}`)
-  if (!existsSync(path.join(root, "design-systems", committed.system.id, "system.json")))
-    problems.push(`design-systems/${committed.system.id}: missing system.json`)
+
+if (onlySystem && !problems.length) {
+  if (!address || !/^[A-Za-z0-9-]+\/[A-Za-z0-9._-]+$/.test(address) || !version || !/^[1-9]\d*$/.test(version)) {
+    console.error("--system needs --address <owner/repo> and --version <n>.")
+    process.exit(1)
+  }
+  const committed = systems[0]
+  buildRepo({ system: committed.system, entries: committed.entries }, path.join(systemsDir, committed.system.id), address, version)
 }
 
 if (problems.length) {
@@ -395,58 +410,8 @@ if (problems.length) {
   for (const problem of problems) console.error(`  - ${problem}`)
   process.exit(1)
 }
-
-const staging = path.join(root, ".generated/registry")
-
-if (onlySystem) {
-  if (!outDir) {
-    console.error("--system needs --out <dir>.")
-    process.exit(1)
-  }
-  const target = path.resolve(root, outDir)
-  rmSync(target, { recursive: true, force: true })
-  const committed = systems[0]
-  buildOne({ system: committed.system, entries: committed.entries }, target, path.join(staging, committed.system.id))
-  hostCheck(target, `${committed.system.id}:`)
-  if (problems.length) {
-    console.error(problems.map((p) => `  - ${p}`).join("\n"))
-    process.exit(1)
-  }
-  console.log(`Built ${committed.system.name} into ${path.relative(root, target)}.`)
-  process.exit(0)
-}
-
-const target = check ? path.join(tmpdir(), `unending-r-${process.pid}`) : path.join(root, "public/r")
-// Stock only: the top-level files. Any folders under public/r are local
-// leftovers from before systems moved to the registry host, and git-ignored.
-for (const name of listFiles(target)) rmSync(path.join(target, name))
-if (check) rmSync(target, { recursive: true, force: true })
-buildOne(null, target, path.join(staging, "stock"))
-hostCheck(target, "Stock:")
-
-if (problems.length) {
-  console.error(problems.map((p) => `  - ${p}`).join("\n"))
-  process.exit(1)
-}
-
-if (check) {
-  const actual = path.join(root, "public/r")
-  const a = listFiles(target).sort()
-  const b = listFiles(actual).sort()
-  const stale = [
-    ...a.filter((f) => !b.includes(f)).map((f) => `missing public/r/${f}`),
-    ...b.filter((f) => !a.includes(f)).map((f) => `extra public/r/${f}`),
-    ...a.filter((f) => b.includes(f) && readFileSync(path.join(target, f), "utf8") !== readFileSync(path.join(actual, f), "utf8")).map(
-      (f) => `stale public/r/${f}`
-    ),
-  ]
-  rmSync(target, { recursive: true, force: true })
-  if (stale.length) {
-    console.error("public/r is out of date. Run npm run registry:build.")
-    for (const line of stale.slice(0, 20)) console.error(`  - ${line}`)
-    process.exit(1)
-  }
-  console.log(`Stock in sync; ${systems.length} local design system${systems.length === 1 ? "" : "s"} valid.`)
-} else {
-  console.log(`Built Stock into public/r; ${systems.length} local design system${systems.length === 1 ? "" : "s"} valid. Ship uploads systems to the registry.`)
-}
+console.log(
+  onlySystem
+    ? `Built ${systems[0].system.name} v${version} for ${address}.`
+    : `Entries' knobs match their code; ${systems.length} local design system${systems.length === 1 ? "" : "s"} valid.`
+)

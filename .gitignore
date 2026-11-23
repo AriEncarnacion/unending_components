@@ -49,7 +49,6 @@ public/fonts/graphik/
 # design-system builds stage baked entries here before shadcn build
 /.generated/
 
-# Design systems live on the registry host, never in this public repo. Your
-# local copies (saved by the tuner, fetched by Pull) stay on this machine.
+# Design systems live in their own GitHub repos, never in this public one.
+# Each design-systems/<id>/ is a clone of its own repo.
 /design-systems/
-/public/r/*/
