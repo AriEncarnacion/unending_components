@@ -1,6 +1,10 @@
 import { readFileSync, writeFileSync } from "node:fs"
 
+import { fontById, fontItem, fontRoles, stockFonts } from "../lib/design-systems/fonts.ts"
+
+const check = process.argv.includes("--check")
 const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8")
+const appFonts = readFileSync(new URL("../app/fonts.ts", import.meta.url), "utf8")
 const registryUrl = new URL("../registry.json", import.meta.url)
 const registry = JSON.parse(readFileSync(registryUrl, "utf8"))
 
@@ -25,16 +29,42 @@ const cssVars = { theme, light, dark }
 const item = registry.items.find((entry) => entry.name === "theme")
 if (!item) throw new Error("registry.json has no `theme` item")
 
-const before = JSON.stringify(item.cssVars)
-const after = JSON.stringify(cssVars)
-if (process.argv.includes("--check")) {
-  if (before !== after) {
-    console.error("registry.json theme is out of date with app/globals.css. Run npm run registry:theme.")
+const problems = []
+
+for (const role of fontRoles) {
+  const id = stockFonts[role]
+  const loader = fontById(id)?.item?.import
+  if (!loader) {
+    problems.push(`stockFonts.${role} is "${id}", which has no Google font to install.`)
+    continue
+  }
+  const loaded = new RegExp(`(\\w+)\\(\\{[^)]*variable: "--font-${role}"`).exec(appFonts)?.[1]
+  if (loaded !== loader)
+    problems.push(`app/fonts.ts loads ${loaded ?? "nothing"} as --font-${role}, but stockFonts.${role} is "${id}" (${loader}).`)
+}
+
+const fontItems = fontRoles.map((role) => fontItem(role, stockFonts[role], "The catalog's")).filter(Boolean)
+const fontNames = new Set(fontRoles.map((role) => `font-${role}`))
+const items = registry.items.filter((entry) => !fontNames.has(entry.name))
+items.splice(items.indexOf(item) + 1, 0, ...fontItems)
+
+const stale =
+  JSON.stringify(item.cssVars) !== JSON.stringify(cssVars) || JSON.stringify(items) !== JSON.stringify(registry.items)
+
+if (check) {
+  if (stale) problems.push("registry.json's theme or font items are out of date with app/globals.css and stockFonts. Run npm run registry:theme.")
+  if (problems.length) {
+    for (const problem of problems) console.error(problem)
     process.exit(1)
   }
-  console.log("Theme in sync.")
+  console.log("Theme and fonts in sync.")
 } else {
+  if (problems.length) {
+    for (const problem of problems) console.error(problem)
+    process.exit(1)
+  }
   item.cssVars = cssVars
+  registry.items = items
   writeFileSync(registryUrl, JSON.stringify(registry, null, 2) + "\n")
-  console.log(`Synced ${Object.keys(light).length} light, ${Object.keys(dark).length} dark tokens.`)
+  console.log(`Synced ${Object.keys(light).length} light, ${Object.keys(dark).length} dark tokens and ${fontItems.length} fonts.`)
 }

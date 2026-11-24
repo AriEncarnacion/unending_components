@@ -39,7 +39,7 @@ Text fields keep their own undo; sliders, buttons and swatches use the page's. T
 
 ### Leave guard
 
-`BackButton` asks to save or discard unsaved changes before leaving a system. It does this from the button itself, and from the browser's back and forward buttons where the browser lets a page cancel them (the Navigation API). TypeScript 5.9's DOM types don't include the Navigation API, so the few parts the guard uses are typed by hand. How the guard re-arms is tracked in #22.
+`BackButton` asks to save or discard unsaved changes before leaving a system. It does this from the button itself, and from the browser's back and forward buttons where the browser lets a page cancel them (the Navigation API). TypeScript 5.9's DOM types don't include the Navigation API, so the few parts the guard uses are typed by hand. After Save or Discard, the guard lets through only the history entry it is leaving to, and switches back on when that traverse's `finished` promise settles, whether it succeeds or fails.
 
 ### Small things that are easy to undo by accident
 

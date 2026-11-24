@@ -12,6 +12,7 @@ import {
 } from "next/font/google"
 
 import type { FontOption } from "@/components/showcase/token-overrides"
+import { stockFonts } from "@/lib/design-systems/fonts"
 
 export const dmSans = DM_Sans({ subsets: ["latin"], variable: "--font-sans" })
 export const manrope = Manrope({ subsets: ["latin"], variable: "--font-heading" })
@@ -50,18 +51,20 @@ const proportional: FontOption[] = [
   { id: "system", label: "System UI", family: "ui-sans-serif, system-ui, sans-serif" },
 ]
 
-const first = (id: string) => [
-  ...proportional.filter((font) => font.id === id),
-  ...proportional.filter((font) => font.id !== id),
+const monospace: FontOption[] = [
+  { id: "geist-mono", label: "Geist Mono", family: geistMono.style.fontFamily },
+  { id: "plex-mono", label: "IBM Plex Mono", family: plexMono.style.fontFamily },
+  { id: "jetbrains-mono", label: "JetBrains Mono", family: jetbrainsMono.style.fontFamily },
+  { id: "system-mono", label: "System mono", family: "ui-monospace, SFMono-Regular, Menlo, monospace" },
+]
+
+const first = (options: FontOption[], id: string) => [
+  ...options.filter((font) => font.id === id),
+  ...options.filter((font) => font.id !== id),
 ]
 
 export const fontOptions: { sans: FontOption[]; heading: FontOption[]; mono: FontOption[] } = {
-  sans: first("dm-sans"),
-  heading: first("manrope"),
-  mono: [
-    { id: "geist-mono", label: "Geist Mono", family: geistMono.style.fontFamily },
-    { id: "plex-mono", label: "IBM Plex Mono", family: plexMono.style.fontFamily },
-    { id: "jetbrains-mono", label: "JetBrains Mono", family: jetbrainsMono.style.fontFamily },
-    { id: "system-mono", label: "System mono", family: "ui-monospace, SFMono-Regular, Menlo, monospace" },
-  ],
+  sans: first(proportional, stockFonts.sans),
+  heading: first(proportional, stockFonts.heading),
+  mono: first(monospace, stockFonts.mono),
 }

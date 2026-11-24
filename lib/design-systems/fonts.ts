@@ -1,3 +1,5 @@
+import type { RegistryFontItem } from "shadcn/schema"
+
 export type ShippedFont = {
   id: string
   label: string
@@ -40,3 +42,33 @@ export function fontById(id: string) {
 }
 
 export const stockFonts = { sans: "dm-sans", heading: "manrope", mono: "geist-mono" } as const
+
+export const fontRoles = ["sans", "heading", "mono"] as const
+export type FontRole = (typeof fontRoles)[number]
+
+const roleNames: Record<FontRole, { title: string; use: string; usedBy?: string }> = {
+  sans: { title: "body", use: "body and UI font" },
+  heading: { title: "headings", use: "heading font", usedBy: "h1-h6 and stock titles (font-heading)" },
+  mono: { title: "code and data", use: "monospace font" },
+}
+
+export function fontItem(role: FontRole, id: string, owner: string): RegistryFontItem | null {
+  const font = fontById(id)
+  if (!font?.item) return null
+  return {
+    name: `font-${role}`,
+    type: "registry:font",
+    title: `${font.label} (${roleNames[role].title})`,
+    description: [`${owner} ${roleNames[role].use}, as --font-${role}.`, roleNames[role].usedBy && `Used by ${roleNames[role].usedBy}.`]
+      .filter(Boolean)
+      .join(" "),
+    font: {
+      family: font.item.family,
+      provider: "google",
+      import: font.item.import,
+      variable: `--font-${role}`,
+      subsets: ["latin"],
+      dependency: font.item.dependency,
+    },
+  }
+}

@@ -302,11 +302,14 @@ export function ComposedSection() {
           </div>
 
           <div className="flex min-w-0 flex-col gap-4">
-            <Alert variant="destructive" className="has-data-[slot=alert-action]:pr-24">
+            <Alert
+              variant="destructive"
+              className="has-data-[slot=alert-action]:pr-2.5 has-[>svg]:grid-cols-[auto_1fr_auto]"
+            >
               <CircleAlertIcon />
               <AlertTitle>Secondary has a 4-hour gap</AlertTitle>
               <AlertDescription>Tue 24 Nov, 04:00 to 08:00. Assign someone or accept the gap.</AlertDescription>
-              <AlertAction>
+              <AlertAction className="static col-start-3 row-span-2 row-start-1 self-start">
                 <Popover>
                   <PopoverTrigger render={<Button size="xs" variant="outline" />}>Assign</PopoverTrigger>
                   <PopoverContent align="end" className="w-64">

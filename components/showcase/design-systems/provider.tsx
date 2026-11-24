@@ -96,11 +96,46 @@ function readDrafts(): Record<string, Draft> {
   return drafts
 }
 
-function writeDraft(id: string, draft: Draft | null) {
+const noDrafts: Record<string, Draft> = {}
+const draftListeners = new Set<() => void>()
+let draftCache: Record<string, Draft> | null = null
+
+function draftSnapshot() {
+  draftCache ??= readDrafts()
+  return draftCache
+}
+
+function emitDrafts() {
+  for (const listener of draftListeners) listener()
+}
+
+function onDraftStorage(event: StorageEvent) {
+  if (event.key !== null && !event.key.startsWith(DRAFT_PREFIX)) return
+  draftCache = readDrafts()
+  emitDrafts()
+}
+
+function subscribeDrafts(listener: () => void) {
+  if (!draftListeners.size) window.addEventListener("storage", onDraftStorage)
+  draftListeners.add(listener)
+  return () => {
+    draftListeners.delete(listener)
+    if (draftListeners.size) return
+    window.removeEventListener("storage", onDraftStorage)
+    draftCache = null
+  }
+}
+
+function setDraft(id: string, draft: Draft | null) {
+  const next = { ...draftSnapshot() }
+  if (draft) next[id] = draft
+  else delete next[id]
+  draftCache = next
   try {
     if (draft) localStorage.setItem(DRAFT_PREFIX + id, JSON.stringify(draft))
     else localStorage.removeItem(DRAFT_PREFIX + id)
   } catch {}
+  emitDrafts()
 }
 
 const same = (a: Working, b: Working) => serialize({ s: a.system, e: a.entries }) === serialize({ s: b.system, e: b.entries })
@@ -121,26 +156,14 @@ export function DesignSystemsProvider({
 }) {
   const router = useRouter()
   const [committed, setCommitted] = React.useState(initial)
-  const [drafts, setDrafts] = React.useState<Record<string, Draft>>({})
-  const [restored, setRestored] = React.useState(false)
+  const stored = React.useSyncExternalStore(subscribeDrafts, draftSnapshot, () => null)
+  const restored = stored !== null
+  const drafts = stored ?? noDrafts
   const [histories, setHistories] = React.useState<Record<string, History>>({})
   const last = React.useRef<{ key?: string; at: number }>({ at: 0 })
   const onReadOnlyEdit = React.useRef<(() => void) | null>(null)
   const setReadOnlyHandler = React.useCallback((handler: (() => void) | null) => {
     onReadOnlyEdit.current = handler
-  }, [])
-
-  React.useEffect(() => {
-    const load = () => setDrafts(readDrafts())
-    /* eslint-disable react-hooks/set-state-in-effect -- one-time restore from storage */
-    load()
-    setRestored(true)
-    /* eslint-enable react-hooks/set-state-in-effect */
-    const onStorage = (event: StorageEvent) => {
-      if (event.key === null || event.key.startsWith(DRAFT_PREFIX)) load()
-    }
-    window.addEventListener("storage", onStorage)
-    return () => window.removeEventListener("storage", onStorage)
   }, [])
 
   const committedFor = React.useCallback((id: string) => committed.find((c) => c.system.id === id), [committed])
@@ -172,22 +195,15 @@ export function DesignSystemsProvider({
   const putWorking = React.useCallback(
     (id: string, working: Working, savedHash?: string) => {
       const saved = committedFor(id)
-      setDrafts((previous) => {
-        const next = { ...previous }
-        if (saved && same(saved, working)) {
-          delete next[id]
-          writeDraft(id, null)
-        } else {
-          const draft: Draft = {
-            version: 1,
-            savedHash: savedHash ?? previous[id]?.savedHash ?? saved?.hash ?? "",
-            system: working.system,
-            entries: working.entries,
-          }
-          next[id] = draft
-          writeDraft(id, draft)
-        }
-        return next
+      if (saved && same(saved, working)) {
+        setDraft(id, null)
+        return
+      }
+      setDraft(id, {
+        version: 1,
+        savedHash: savedHash ?? draftSnapshot()[id]?.savedHash ?? saved?.hash ?? "",
+        system: working.system,
+        entries: working.entries,
       })
     },
     [committedFor]
@@ -315,12 +331,7 @@ export function DesignSystemsProvider({
 
   const discard = React.useCallback(
     (id: string) => {
-      setDrafts((previous) => {
-        const next = { ...previous }
-        delete next[id]
-        return next
-      })
-      writeDraft(id, null)
+      setDraft(id, null)
       setHistories((h) => ({ ...h, [id]: { past: [], future: [] } }))
     },
     []
@@ -359,12 +370,7 @@ export function DesignSystemsProvider({
         force,
       })
       if (!ok) return failure(data, status)
-      setDrafts((previous) => {
-        const next = { ...previous }
-        delete next[id]
-        return next
-      })
-      writeDraft(id, null)
+      setDraft(id, null)
       return { ok: true }
     },
     [active, drafts, committedFor, post]
