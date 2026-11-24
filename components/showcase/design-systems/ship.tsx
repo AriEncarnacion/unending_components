@@ -1,11 +1,12 @@
 "use client"
 
 import * as React from "react"
-import { CheckIcon, CircleIcon, DownloadIcon, ExternalLinkIcon, RocketIcon, TriangleAlertIcon, Undo2Icon } from "lucide-react"
+import { CheckIcon, CircleIcon, DownloadIcon, GlobeIcon, LockIcon, RocketIcon, TriangleAlertIcon, Undo2Icon, XIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { DialogClose, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -15,6 +16,7 @@ import { Switch } from "@/components/ui/switch"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import type { NewRepo, Preflight, ShipJob, ShipOptions, SystemStatus } from "@/lib/ship/server"
 
+import { Findings } from "./findings"
 import { useDesignSystems } from "./provider"
 
 type ShipState = { ready?: Preflight; status: Record<string, SystemStatus>; jobs: Record<string, ShipJob> }
@@ -27,6 +29,9 @@ const ShipContext = React.createContext<{
   ship: (systemId: string, options?: ShipOptions) => Promise<boolean>
   rollback: (systemId: string, version: number) => Promise<boolean>
   pull: () => Promise<boolean>
+  cancel: (systemId: string) => Promise<boolean>
+  seen: Record<string, number>
+  acknowledge: (systemId: string) => void
 } | null>(null)
 
 const busy = (job?: ShipJob) => job?.state === "running"
@@ -44,6 +49,7 @@ async function post(body: unknown) {
 
 export function ShipProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = React.useState<ShipState>({ status: {}, jobs: {} })
+  const [seen, setSeen] = React.useState<Record<string, number>>({})
   const refresh = React.useCallback(async (fresh = false) => {
     try {
       const response = await fetch(`/api/ship${fresh ? "?refresh" : ""}`)
@@ -94,8 +100,18 @@ export function ShipProvider({ children }: { children: React.ReactNode }) {
         await refresh()
         return !!data
       },
+      cancel: async (systemId: string) => {
+        const data = await post({ action: "cancel", systemId })
+        await refresh()
+        return !!data
+      },
+      seen,
+      acknowledge: (systemId: string) => {
+        const finishedAt = state.jobs[systemId]?.finishedAt
+        if (finishedAt) setSeen((current) => ({ ...current, [systemId]: finishedAt }))
+      },
     }),
-    [state, refresh]
+    [state, refresh, seen]
   )
   return <ShipContext.Provider value={value}>{children}</ShipContext.Provider>
 }
@@ -106,47 +122,46 @@ export function useShip() {
   return context
 }
 
-export function ShipProgress({ job, onRetry }: { job: ShipJob; onRetry?: (options?: ShipOptions) => void }) {
+const blockedByReview = (job?: ShipJob) =>
+  job?.state === "blocked" && (job.blockedBy === "review" || (!job.blockedBy && job.step.startsWith("The review")))
+
+type View = "configure" | "running" | "result"
+
+function viewOf(job: ShipJob | undefined, seenAt: number | undefined): View {
+  if (busy(job)) return "running"
+  if (job && job.action !== "pull" && job.state !== "cancelled" && job.finishedAt && job.finishedAt !== seenAt) return "result"
+  return "configure"
+}
+
+function ResultTitle({ job }: { job: ShipJob }) {
+  if (job.state === "shipped")
+    return (
+      <>
+        <RocketIcon className="size-6 shrink-0 text-success" />
+        Shipped v{job.version}
+      </>
+    )
+  if (job.state === "nothing")
+    return (
+      <>
+        <CircleIcon className="size-6 shrink-0 text-muted-foreground" />
+        Nothing new to ship.
+      </>
+    )
   return (
-    <div className="flex flex-col gap-3 text-sm">
-      <div className="flex items-center gap-2 font-medium">
-        {busy(job) ? (
-          <Spinner />
-        ) : job.state === "shipped" ? (
-          <CheckIcon className="size-4 text-success" />
-        ) : job.state === "nothing" ? (
-          <CircleIcon className="size-4 text-muted-foreground" />
-        ) : (
-          <TriangleAlertIcon className="size-4 text-destructive" />
-        )}
-        <span>{job.state === "failed" ? "That didn't work" : job.state === "nothing" ? "Nothing to ship" : job.step}</span>
-      </div>
-      {job.findings ? (
-        <div className="max-h-48 overflow-y-auto rounded-md bg-muted p-2 text-xs whitespace-pre-wrap">{job.findings}</div>
-      ) : null}
-      {job.error ? <p className="text-xs whitespace-pre-wrap text-destructive">{job.error}</p> : null}
-      {job.note ? <p className="text-xs whitespace-pre-wrap text-muted-foreground text-pretty">{job.note}</p> : null}
-      {!busy(job) && job.log.length ? (
-        <ol className="flex flex-col gap-0.5 border-t pt-2 text-xs text-muted-foreground">
-          {job.log.map((entry) => (
-            <li key={entry.at}>{entry.text}</li>
-          ))}
-        </ol>
-      ) : null}
-      {onRetry && job.action === "ship" && (job.state === "blocked" || job.state === "failed") ? (
-        <div className="flex gap-2">
-          <Button size="sm" onClick={() => onRetry()}>
-            <RocketIcon data-icon="inline-start" />
-            Ship again
-          </Button>
-          {job.step.startsWith("The review") ? (
-            <Button size="sm" variant="outline" onClick={() => onRetry({ review: false })}>
-              Ship without the review
-            </Button>
-          ) : null}
-        </div>
-      ) : null}
-    </div>
+    <>
+      <TriangleAlertIcon className="size-6 shrink-0 text-destructive" />
+      {blockedByReview(job) ? "The review blocked this ship." : job.state === "blocked" ? "The build found problems." : "That didn't work."}
+    </>
+  )
+}
+
+function RepoLink({ repo, url, visibility }: { repo: string; url: string; visibility?: string }) {
+  return (
+    <a href={url} target="_blank" rel="noreferrer" className="group/repo flex w-fit items-center gap-2 text-sm">
+      <span className="truncate font-mono underline decoration-foreground/40 underline-offset-3 group-hover/repo:decoration-foreground">{repo}</span>
+      {visibility ? <Badge variant="outline">{visibility}</Badge> : null}
+    </a>
   )
 }
 
@@ -166,11 +181,11 @@ export function ShipBadge({ systemId, saved }: { systemId: string; saved: boolea
 
 function NewRepoFields({ id, owners, value, onChange }: { id: string; owners: string[]; value: NewRepo; onChange: (next: NewRepo) => void }) {
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-1.5">
         <Label className="text-xs">Owner</Label>
         <Select value={value.owner} onValueChange={(owner) => onChange({ ...value, owner: String(owner) })}>
-          <SelectTrigger size="sm" className="w-full">
+          <SelectTrigger className="w-full">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -192,19 +207,18 @@ function NewRepoFields({ id, owners, value, onChange }: { id: string; owners: st
         <Label className="text-xs">Visibility</Label>
         <ToggleGroup
           variant="outline"
-          size="sm"
           value={[value.visibility]}
           onValueChange={(next: string[]) => next[0] && onChange({ ...value, visibility: next[0] as NewRepo["visibility"] })}
         >
-          <ToggleGroupItem value="private">Private</ToggleGroupItem>
-          <ToggleGroupItem value="public">Public</ToggleGroupItem>
+          <ToggleGroupItem value="private">
+            <LockIcon />
+            Private
+          </ToggleGroupItem>
+          <ToggleGroupItem value="public">
+            <GlobeIcon />
+            Public
+          </ToggleGroupItem>
         </ToggleGroup>
-        <p className="text-xs text-muted-foreground text-pretty">
-          {value.visibility === "private"
-            ? "Only people who can read the repo can install it. For an org's design system, put it in that org."
-            : "Anyone on the internet can install it."}{" "}
-          Change it later in the repo&apos;s settings on GitHub.
-        </p>
       </div>
     </div>
   )
@@ -216,9 +230,9 @@ export function useShipping() {
   return busy(state.jobs[ds.active?.system.id ?? ""])
 }
 
-export function ShipPanel() {
+export function ShipDialogContent({ onDone }: { onDone: () => void }) {
   const ds = useDesignSystems()
-  const { state, ship, rollback } = useShip()
+  const { state, ship, rollback, cancel, seen, acknowledge } = useShip()
   const [review, setReview] = React.useState(false)
   const active = ds.active
   const id = active?.system.id ?? ""
@@ -226,6 +240,7 @@ export function ShipPanel() {
   const [create, setCreate] = React.useState<NewRepo>({ owner: "", name: `${id}-design-system`, visibility: "private" })
   if (!active) return null
   const job = state.jobs[id]
+  const view = viewOf(job, seen[id])
   const dirty = ds.systems.find((s) => s.id === id)?.dirty
   const status = state.status[id]
   const ready = state.ready
@@ -243,74 +258,138 @@ export function ShipPanel() {
     await ship(id, { review, ...(firstShip ? { create: target } : {}), ...options })
   }
 
+  const done = () => {
+    acknowledge(id)
+    onDone()
+  }
+
   const versions = status?.version ? Array.from({ length: status.version - 1 }, (_, i) => status.version! - 1 - i) : []
+  const reviewed = blockedByReview(job)
+  const repo = status?.repo ?? (job?.url ? { repo: job.url.replace("https://github.com/", ""), url: job.url, visibility: undefined } : undefined)
+
   return (
     <>
-      {!ready ? (
-        <p className="text-sm text-muted-foreground">Checking GitHub…</p>
-      ) : ready.problems.length ? (
-        <div className="flex flex-col gap-2 text-sm">
-          <span className="font-medium">Shipping isn&apos;t set up yet</span>
-          <ul className="flex list-disc flex-col gap-1 pl-4 text-xs text-muted-foreground">
-            {ready.problems.map((problem) => (
-              <li key={problem}>{problem}</li>
-            ))}
-          </ul>
-        </div>
-      ) : (
-        <div className="flex flex-col gap-3">
-          {status?.repo ? (
-            <a
-              href={status.repo.url}
-              target="_blank"
-              rel="noreferrer"
-              className="flex items-center gap-1.5 text-xs text-muted-foreground underline-offset-2 hover:underline"
-            >
-              <span className="truncate font-mono">{status.repo.repo}</span>
-              <Badge variant="outline">{status.repo.visibility}</Badge>
-              <ExternalLinkIcon className="size-3 shrink-0" />
-            </a>
+      <DialogHeader className="flex-row items-center justify-between gap-4">
+        <DialogTitle className="flex min-w-0 items-center gap-2.5 text-2xl leading-8 font-semibold tracking-tight">
+          {view === "result" && job ? <ResultTitle job={job} /> : `Ship ${active.system.name}`}
+        </DialogTitle>
+        {view !== "running" ? (
+          <DialogClose render={<Button variant="ghost" size="icon-sm" />}>
+            <XIcon />
+            <span className="sr-only">Close</span>
+          </DialogClose>
+        ) : null}
+      </DialogHeader>
+
+      {view === "running" && job ? (
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-2 font-medium">
+            <Spinner />
+            {job.step}
+          </div>
+          {job.action === "ship" && job.cancellable ? (
+            <Button variant="outline" onClick={() => void cancel(id)}>
+              Cancel
+            </Button>
           ) : null}
-          <p className="text-xs text-muted-foreground text-pretty">
-            {firstShip
-              ? `Ship creates ${active.system.name}'s own GitHub repo, builds the system into it as a shadcn registry and tags v1.`
-              : `Ship builds ${active.system.name}, commits it to its repo and tags the next version.`}
-            {status?.status === "shipped" && !dirty ? ` v${status.version} matches what's saved here.` : ""}
-            {status?.status === "behind" ? " The catalog's entries changed since it last shipped, so shipping again rebuilds them." : ""}
-          </p>
-          {job ? <ShipProgress job={job} onRetry={(options) => void go(options)} /> : null}
-          {!busy(job) ? (
-            <div className="flex flex-col gap-3 border-t pt-3">
-              {firstShip ? <NewRepoFields id={id} owners={owners} value={target} onChange={setCreate} /> : null}
-              <div className="flex items-center justify-between gap-2">
+        </div>
+      ) : null}
+
+      {view === "result" && job ? (
+        <>
+          {job.state === "shipped" && repo ? <RepoLink {...repo} /> : null}
+          {job.findings ? (
+            <Findings
+              text={job.findings}
+              format={job.state === "blocked" && !reviewed ? "log" : "markdown"}
+              copyText={
+                reviewed
+                  ? `Claude reviewed the ${job.systemName} design system before shipping it and asked for these changes:\n\n${job.findings}`
+                  : job.findings
+              }
+            />
+          ) : null}
+          {job.error ? <p className="whitespace-pre-wrap text-destructive">{job.error}</p> : null}
+          {reviewed ? (
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={() => void go({ review: true })}>
+                <RocketIcon data-icon="inline-start" />
+                Review again
+              </Button>
+              <Button variant="outline" onClick={() => void go({ review: false })}>
+                Ship without the review
+              </Button>
+            </div>
+          ) : job.action === "ship" && (job.state === "blocked" || job.state === "failed") ? (
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={() => void go()}>
+                <RocketIcon data-icon="inline-start" />
+                Try again
+              </Button>
+            </div>
+          ) : (
+            <div className="flex justify-end">
+              <Button onClick={done}>Done</Button>
+            </div>
+          )}
+        </>
+      ) : null}
+
+      {view === "configure" ? (
+        !ready ? (
+          <p className="text-muted-foreground">Checking GitHub…</p>
+        ) : ready.problems.length ? (
+          <div className="flex flex-col gap-2">
+            <span className="font-medium">Shipping isn&apos;t set up yet</span>
+            <ul className="flex list-disc flex-col gap-1 pl-4 text-muted-foreground">
+              {ready.problems.map((problem) => (
+                <li key={problem}>{problem}</li>
+              ))}
+            </ul>
+          </div>
+        ) : (
+          <>
+            {!firstShip && repo ? <RepoLink {...repo} /> : null}
+            {firstShip ? <NewRepoFields id={id} owners={owners} value={target} onChange={setCreate} /> : null}
+            {versions.length ? (
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="mr-1 text-xs font-medium">Roll back to</span>
+                {versions.slice(0, 8).map((version) => (
+                  <Button key={version} size="xs" variant="outline" onClick={() => void rollback(id, version)}>
+                    <Undo2Icon data-icon="inline-start" />v{version}
+                  </Button>
+                ))}
+              </div>
+            ) : null}
+            <div className="flex flex-wrap items-center justify-end gap-4">
+              <div className="flex items-center gap-2">
                 <Label htmlFor="ship-review" className="text-xs">
                   Review first with Claude
                 </Label>
                 <Switch id="ship-review" checked={review} onCheckedChange={setReview} disabled={!ready.claude} />
               </div>
-              <Button size="sm" disabled={firstShip && (!target.owner || !target.name)} onClick={() => void go()}>
+              <Button disabled={firstShip && (!target.owner || !target.name)} onClick={() => void go()}>
                 <RocketIcon data-icon="inline-start" />
                 {firstShip ? "Create the repo and ship v1" : `Ship ${active.system.name}`}
               </Button>
-              {versions.length ? (
-                <div className="flex flex-col gap-1.5 border-t pt-3">
-                  <span className="text-xs text-muted-foreground text-pretty">
-                    Roll back: ship v{status!.version! + 1} with an earlier version&apos;s files. Apps pinned to a version keep it.
-                  </span>
-                  <div className="flex flex-wrap gap-1">
-                    {versions.slice(0, 8).map((version) => (
-                      <Button key={version} size="xs" variant="outline" onClick={() => void rollback(id, version)}>
-                        <Undo2Icon data-icon="inline-start" />v{version}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
             </div>
-          ) : null}
-        </div>
-      )}
+          </>
+        )
+      ) : null}
     </>
+  )
+}
+
+function PullProgress({ job }: { job: ShipJob }) {
+  return (
+    <div className="flex flex-col gap-1.5 text-sm">
+      <div className="flex items-center gap-2 font-medium">
+        {busy(job) ? <Spinner /> : job.state === "failed" ? <TriangleAlertIcon className="size-4 text-destructive" /> : <CheckIcon className="size-4 text-success" />}
+        {job.state === "failed" ? "That didn't work" : job.step}
+      </div>
+      {job.error ? <p className="text-xs whitespace-pre-wrap text-destructive">{job.error}</p> : null}
+      {job.note ? <p className="text-xs whitespace-pre-wrap text-muted-foreground text-pretty">{job.note}</p> : null}
+    </div>
   )
 }
 
@@ -335,7 +414,7 @@ export function PullButton() {
             Finds every design-system repo you or your orgs own (tagged unending-design-system on GitHub), clones the ones missing here and
             updates the rest. Systems with changes that haven&apos;t shipped are left alone.
           </p>
-          {job ? <ShipProgress job={job} /> : null}
+          {job ? <PullProgress job={job} /> : null}
           <Button size="sm" disabled={busy(job)} onClick={() => void pull()}>
             <DownloadIcon data-icon="inline-start" />
             Pull

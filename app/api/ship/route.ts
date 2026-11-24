@@ -1,7 +1,7 @@
 import { readCommitted } from "@/lib/design-systems/load"
 import { idPattern } from "@/lib/design-systems/schema"
 import { guardDevRead, guardDevWrite } from "@/lib/dev-guard"
-import { jobs, ownerPattern, preflight, repoPattern, startPull, startRollback, startShip, statuses, type NewRepo } from "@/lib/ship/server"
+import { cancelShip, jobs, ownerPattern, preflight, repoPattern, startPull, startRollback, startShip, statuses, type NewRepo } from "@/lib/ship/server"
 
 const json = (body: unknown, status = 200) => Response.json(body, { status })
 
@@ -18,6 +18,7 @@ type Body =
   | { action: "ship"; systemId: string; create?: NewRepo; review?: boolean }
   | { action: "rollback"; systemId: string; version: number }
   | { action: "pull" }
+  | { action: "cancel"; systemId: string }
 
 export async function POST(request: Request) {
   const blocked = guardDevWrite(request)
@@ -31,8 +32,9 @@ export async function POST(request: Request) {
   }
   try {
     if (body.action === "pull") return json({ job: startPull() })
-    if (body.action !== "ship" && body.action !== "rollback") return json({ error: "Unknown action." }, 400)
+    if (body.action !== "ship" && body.action !== "rollback" && body.action !== "cancel") return json({ error: "Unknown action." }, 400)
     if (typeof body.systemId !== "string" || !idPattern.test(body.systemId)) return json({ error: "Invalid system id." }, 400)
+    if (body.action === "cancel") return json({ job: cancelShip(body.systemId) })
     const committed = (await readCommitted()).find((c) => c.system.id === body.systemId)
     if (!committed) return json({ error: "Save the system first." }, 400)
     const name = committed.system.name

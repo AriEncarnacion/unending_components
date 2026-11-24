@@ -39,7 +39,7 @@ import { semanticScales, type KeyColor, type Scale } from "@/lib/palette"
 
 import { describeChanges } from "./changes"
 import { useDesignSystems } from "./provider"
-import { ShipPanel, useShip, useShipping } from "./ship"
+import { ShipDialogContent, useShip, useShipping } from "./ship"
 
 export function UnsavedDot({ className }: { className?: string }) {
   return <span aria-label="Unsaved changes" className={cn("size-1.5 shrink-0 rounded-full bg-primary", className)} />
@@ -505,6 +505,7 @@ export function SystemMenu() {
   const ds = useDesignSystems()
   const { theme, setTheme } = useTheme()
   const shipping = useShipping()
+  const { acknowledge } = useShip()
   const [saveOpen, setSaveOpen] = React.useState(0)
   const [shipOpen, setShipOpen] = React.useState(false)
   const dirty = !!ds.systems.find((s) => s.id === ds.activeId)?.dirty
@@ -565,14 +566,16 @@ export function SystemMenu() {
       </DropdownMenu>
       <SaveDialog key={saveOpen} open={saveOpen > 0} onOpenChange={(open) => !open && setSaveOpen(0)} />
       {ds.active ? (
-        <Dialog open={shipOpen} onOpenChange={setShipOpen}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Ship {ds.active.system.name}</DialogTitle>
-            </DialogHeader>
-            <div className="flex flex-col gap-3 text-sm">
-              <ShipPanel />
-            </div>
+        <Dialog
+          open={shipOpen}
+          onOpenChange={(open) => {
+            if (!open && shipping) return
+            if (!open) acknowledge(ds.active!.system.id)
+            setShipOpen(open)
+          }}
+        >
+          <DialogContent showCloseButton={false} className="gap-4 p-8 sm:max-w-[45rem]">
+            <ShipDialogContent onDone={() => setShipOpen(false)} />
           </DialogContent>
         </Dialog>
       ) : null}
