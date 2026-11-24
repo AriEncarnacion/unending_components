@@ -8,7 +8,6 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "lint:prune": "eslint --prune-suppressions",
     "comments:report": "node scripts/comment-report.mjs",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit",

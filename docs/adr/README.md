@@ -4,7 +4,7 @@ Why the code is the way it is. Code carries no comments (ADR 0001), so a choice 
 
 | ADR | Covers |
 | --- | --- |
-| [0001](0001-no-code-comments.md) | No code comments, and the lint ratchet |
+| [0001](0001-no-code-comments.md) | No code comments |
 | [0002](0002-routes-frames-and-rendering.md) | Per-system routes, size and preview frames, static rendering |
 | [0003](0003-dev-only-routes.md) | Dev-only API routes and their CSRF and DNS-rebinding guards |
 | [0004](0004-fonts.md) | Theme fonts, font options, licensed local faces |

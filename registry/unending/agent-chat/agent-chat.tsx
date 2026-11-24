@@ -29,11 +29,9 @@ import { ChatMarkdown } from "./chat-markdown"
 export type AgentChatMessage = {
   id: string
   role: "user" | "assistant"
-  /** Markdown. Assistant text may be partial while it streams. */
   content: string
 }
 
-/** Mirrors the AI SDK's `useChat` status so the two can be wired directly. */
 export type AgentChatStatus = "ready" | "submitted" | "streaming" | "error"
 
 export type AgentChatProps = Omit<React.ComponentProps<"div">, "onSubmit"> & {
@@ -43,7 +41,6 @@ export type AgentChatProps = Omit<React.ComponentProps<"div">, "onSubmit"> & {
   onStop?: () => void
   error?: string
   placeholder?: string
-  /** Shown before the first message. */
   empty?: React.ReactNode
 }
 

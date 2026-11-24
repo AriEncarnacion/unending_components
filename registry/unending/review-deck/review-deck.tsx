@@ -18,13 +18,13 @@ import { useEntryTuning } from "@/lib/tuning"
 
 export type ReviewDirection = "left" | "down" | "right"
 
+export type Pixels = number
+export type Degrees = number
+
 export type ReviewGesture = {
-  /** Movement below this many pixels is ignored. */
-  deadZone: number
-  /** Distance from origin at which a release decides. */
-  commitDistance: number
-  /** Half-width in degrees of the neutral gaps at 45°, 135° and 270°. */
-  angleBuffer: number
+  deadZone: Pixels
+  commitDistance: Pixels
+  angleBuffer: Degrees
 }
 
 const DEFAULT_GESTURE: ReviewGesture = { deadZone: 18, commitDistance: 110, angleBuffer: 7.5 }
@@ -64,9 +64,7 @@ export type ReviewAction<A extends string = string> = {
   id: A
   direction: ReviewDirection
   label: string
-  /** Defaults to true for left, null for down and false for right. */
   value?: DecisionValue
-  /** One printable key, matched case-insensitively. */
   shortcut?: string
   icon?: React.ReactNode
   disabled?: boolean
@@ -130,13 +128,10 @@ const tone: Record<ReviewDirection, { tint: string; ink: string; button: "defaul
 }
 
 export type ReviewDeckProps<T, A extends string = DefaultActionId> = {
-  /** Controlled queue; items[0] is the active card. Remove it once onDecision succeeds. */
   items: readonly T[]
   getItemId: (item: T) => string
   renderCard: (item: T) => React.ReactNode
-  /** May return a promise. A rejection restores the card and asks to retry. */
   onDecision: (decision: ReviewDecision<T, A>) => void | Promise<void>
-  /** Restore your previous recorded choice and put its item back at the front. */
   onUndo?: () => void | Promise<void>
   canUndo?: boolean
   actions?: readonly ReviewAction<A>[]

@@ -17,16 +17,15 @@ import { useEntryTuning } from "@/lib/tuning"
 const HOUR = 3_600_000
 const DAY = 24 * HOUR
 
+export type EpochMs = number
+export type DurationMs = number
+
 export type TimelineEvent = {
   id: string
-  /** Epoch milliseconds. */
-  start: number
-  /** Epoch milliseconds, exclusive. */
-  end: number
+  start: EpochMs
+  end: EpochMs
   label: string
-  /** Replaces part of another event. Drawn with a dashed edge. */
   override?: boolean
-  /** One of the five chart colors, to tell people or kinds apart. */
   tone?: 1 | 2 | 3 | 4 | 5
 }
 
@@ -34,7 +33,6 @@ export type TimelineLane = {
   id: string
   label: string
   events: TimelineEvent[]
-  /** Shown in place of events when none are in view. */
   emptyLabel?: string
 }
 
@@ -43,26 +41,19 @@ export type TimelineScrubberProps = Omit<
   "onChange" | "defaultValue"
 > & {
   lanes: TimelineLane[]
-  /** The present moment. Defaults to the clock, ticking every 15 seconds. */
-  now?: number
-  /** How much time the track shows at once, in ms. Defaults to 14 days. */
-  span?: number
-  /** How far either side of now the scrubber can travel. Defaults to 90 days. */
-  range?: number
-  /** The moment under the playhead (controlled). */
-  value?: number
-  /** The moment under the playhead at first render. Defaults to now. */
-  defaultValue?: number
-  onValueChange?: (time: number) => void
-  /** Settle on the nearest event edge after a drag or flick. Defaults to true. */
+  now?: EpochMs
+  span?: DurationMs
+  range?: DurationMs
+  value?: EpochMs
+  defaultValue?: EpochMs
+  onValueChange?: (time: EpochMs) => void
   snapToEdges?: boolean
-  formatTime?: (time: number) => string
-  /** Replaces the per-lane summary below the track. */
+  formatTime?: (time: EpochMs) => string
   renderDetail?: (
     lane: TimelineLane,
     event: TimelineEvent | undefined,
-    at: number,
-    now: number
+    at: EpochMs,
+    now: EpochMs
   ) => React.ReactNode
 }
 
@@ -119,10 +110,6 @@ function describeRemaining(event: TimelineEvent, now: number) {
   return `${duration} left`
 }
 
-/**
- * Splits base events around overrides so each moment has exactly one owner.
- * Use it for rotations where someone covers part of another person's slot.
- */
 export function withOverrides(
   events: TimelineEvent[],
   overrides: TimelineEvent[]

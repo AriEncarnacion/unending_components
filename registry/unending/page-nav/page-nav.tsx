@@ -32,9 +32,7 @@ export type PageNavItem = {
   title: string
   href: string
   icon?: React.ComponentType<{ className?: string }>
-  /** A short count or status shown at the end of the row, e.g. "3". */
   badge?: React.ReactNode
-  /** Sub-pages. The group opens when the current page is inside it. */
   items?: PageNavItem[]
 }
 
@@ -43,11 +41,6 @@ export type PageNavSection = {
   items: PageNavItem[]
 }
 
-/**
- * Renders a link with your router (Next's Link, React Router's Link, or <a>).
- * Spread every prop onto the link: the sidebar passes its classes, data
- * attributes and aria-current through them.
- */
 export type PageNavLink = (
   props: React.ComponentProps<"a"> & { href: string }
 ) => React.ReactElement
@@ -57,14 +50,10 @@ export type PageNavProps = Omit<
   "children"
 > & {
   sections: PageNavSection[]
-  /** The current location, used to mark the active page and open its group. */
   currentPath: string
   renderLink?: PageNavLink
-  /** Shown above the pages, e.g. the app name or a workspace switcher. */
   header?: React.ReactNode
-  /** Shown below the pages, e.g. the signed-in person. */
   footer?: React.ReactNode
-  /** Show a filter field once there are at least this many pages. Defaults to 12. */
   filterThreshold?: number
 }
 

@@ -38,20 +38,17 @@ import { useHighlightedCode } from "@/hooks/use-highlighted-code"
 export type AgentStepStatus = "pending" | "running" | "done" | "error"
 export type AgentStepKind = "think" | "search" | "read" | "edit" | "command" | "web" | "tool"
 
+export type EpochMs = number
+
 export type AgentStep = {
   id: string
-  /** Present tense while running ("Searching the rota"), past once done. */
   title: string
   status: AgentStepStatus
   kind?: AgentStepKind
-  /** Epoch ms. With startedAt and no endedAt, a running step shows a live timer. */
-  startedAt?: number
-  endedAt?: number
-  /** A short result shown after the title, e.g. "12 matches". */
+  startedAt?: EpochMs
+  endedAt?: EpochMs
   result?: string
-  /** Plain text shown when the step is opened: reasoning, a summary, an error. */
   detail?: string
-  /** Tool input or output shown when the step is opened. */
   code?: { language: string; value: string; title?: string }
   steps?: AgentStep[]
 }
@@ -172,7 +169,6 @@ function flatten(steps: AgentStep[]): AgentStep[] {
 
 export type AgentTraceProps = Omit<React.ComponentProps<"div">, "children"> & {
   steps: AgentStep[]
-  /** Collapse the whole run into its summary line. Defaults to open while running. */
   defaultOpen?: boolean
 }
 

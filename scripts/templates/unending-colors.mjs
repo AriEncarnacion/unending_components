@@ -1,17 +1,7 @@
-// Design-system colour guard, handed off with the design system. It flags raw
-// colours and Tailwind palette classes in components, so UI keeps to the
-// semantic tokens (bg-primary, text-muted-foreground, text-success…).
-//
-// Use it in eslint.config.mjs:
-//   import unendingColors from "./eslint/unending-colors.mjs"
-//   export default [...yourConfig, unendingColors]
-// This file is yours now: widen `allow` or change the patterns as you see fit.
-
 const rawColour = /(#[0-9a-f]{3,8}\b|\b(?:rgba?|hsla?|oklch|oklab|lab|lch|color)\()/i
 const paletteClass =
   /\b(?:bg|text|border|ring|fill|stroke|from|via|to|outline|decoration|shadow|accent|caret|divide|placeholder)-(?:slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose|black|white)(?:-\d{2,3})?\b/
 const arbitraryColour = /-\[(?:#|rgb|hsl|oklch)/i
-// Raw palette steps (var(--jade-3)) are for data and illustration only.
 const scaleVar = /var\(--(?!(?:background|foreground|card|popover|primary|secondary|muted|accent|destructive|success|warning|info|border|input|ring|chart-\d|sidebar|radius|spacing|font)[\w-]*\))[a-z]+(?:-[a-z]+)*-\d{1,2}\)/
 
 const rule = {

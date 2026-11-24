@@ -22,25 +22,16 @@ Only the last kind is worth keeping, and a comment is a poor place for it. Comme
 - An excuse becomes a GitHub issue to fix the workaround, not a comment.
 - Anything else is said in code: a clearer name, a type (`EpochMs`, not `number // ms`), a named constant or a test.
 
-### Ratchet
+### Installable entries too
 
-Existing comments are grandfathered in `eslint-suppressions.json`, using ESLint's bulk suppressions. The counts work as a ratchet in both directions:
+The rule has no exemption for files that ship to apps, TSDoc on public props included. An installed entry is documented by its prop names and types (units are type aliases such as `EpochMs`, `Pixels` and `Degrees`, declared in each entry so it installs on its own), its README, and its `docs` in `registry.json`, which the shadcn CLI prints after install. A rule the caller must follow, such as Page Nav's `renderLink` spreading every prop, goes in both the README and `docs`.
 
-- A file can't gain comments. Going over its count is a lint error.
-- When a file loses comments, `npm run lint` fails until `npm run lint:prune` lowers its count in the suppressions file. The count can't creep back up later.
+### No suppressions
 
-New files start at zero.
-
-### Comments that are still grandfathered
-
-Most of the remaining comments are TSDoc on the public props of installable entries (`registry/unending/*/<name>.tsx` and `lib/tuning.ts`), plus the header of `scripts/templates/unending-colors.mjs`. These ship to apps, where they're the only documentation a person sees in their editor. Where that documentation should live once the comments go is still open (see "Not yet decided").
+ESLint's bulk suppressions grandfathered the comments left after the first pass, as a ratchet. The follow-up removed them all, so there's no `eslint-suppressions.json` and the rule is an error everywhere. Don't add suppressions to get a comment through.
 
 ## Consequences
 
 - The `/delete-comment` skill (`.claude/skills/delete-comment/`) repeats this triage on whatever comments are left.
 - Comments in CSS files aren't linted. The three that existed have been moved into ADRs 0004 and 0009.
 - Excuses found in the first pass: #18, #19, #20, #21, #22, #23.
-
-## Not yet decided
-
-- Whether public prop documentation on installable entries moves into each entry's README (its "Props" section), into clearer prop names and types, or stays as TSDoc and is exempted from the rule for `registry/unending/*/<name>.tsx`.

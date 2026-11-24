@@ -22,21 +22,15 @@ import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useEntryTuning } from "@/lib/tuning"
 
-/** Placeholder for a field whose value differs across a multi-selection. */
 export const MIXED = "Mixed"
 
 type InspectorPanelProps = Omit<React.ComponentProps<"aside">, "title"> & {
-  /** What is selected, e.g. "Alex · Override". Omit when nothing is selected. */
   title?: React.ReactNode
-  /** The kind of thing selected, e.g. "Shift". */
   kind?: string
-  /** How many things are selected. Above one, the header says so. */
   count?: number
-  /** Shows Revert when there are unsaved edits. */
   dirty?: boolean
   onRevert?: () => void
   onClose?: () => void
-  /** Shown when nothing is selected. */
   empty?: React.ReactNode
 }
 
@@ -114,7 +108,6 @@ function InspectorPanel({
 
 type InspectorSectionProps = Omit<React.ComponentProps<typeof Collapsible>, "title"> & {
   title: React.ReactNode
-  /** Short summary shown beside the title while the section is closed. */
   summary?: React.ReactNode
 }
 
@@ -160,19 +153,12 @@ function InspectorSection({
 
 type InspectorRowProps = Omit<React.ComponentProps<typeof Field>, "children"> & {
   label: React.ReactNode
-  /** The id of the control, so the label focuses it. */
   htmlFor?: string
   hint?: React.ReactNode
-  /** Marks the row as having different values across the selection. */
   mixed?: boolean
   children: React.ReactNode
 }
 
-/**
- * A compact label-beside-control row, the inspector's unit of editing. In a
- * panel narrower than 24rem the label sits above the control, so neither the
- * control nor its hint is squeezed.
- */
 function InspectorRow({ label, htmlFor, hint, mixed, className, children, ...props }: InspectorRowProps) {
   return (
     <Field

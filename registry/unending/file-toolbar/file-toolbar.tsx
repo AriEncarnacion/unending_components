@@ -29,13 +29,10 @@ export type FileAction = {
   label: string
   icon?: React.ComponentType<{ className?: string }>
   onSelect: () => void
-  /** Shown in the tooltip and menu. Display only; bind keys in your app. */
   shortcut?: string
-  /** Lower stays visible longer as the toolbar narrows. Defaults to list order. */
   priority?: number
   disabled?: boolean
   destructive?: boolean
-  /** Always in the More menu, e.g. Delete. */
   menuOnly?: boolean
 }
 
@@ -47,12 +44,10 @@ export type FileStatus =
 
 export type FileToolbarProps = Omit<React.ComponentProps<"div">, "children"> & {
   name: string
-  /** Allow renaming in place. Called with the trimmed new name. */
   onRename?: (name: string) => void
   status?: FileStatus
   icon?: React.ReactNode
   actions?: FileAction[]
-  /** The one main thing to do with the file, e.g. Share or Publish. */
   primaryAction?: Omit<FileAction, "priority" | "menuOnly" | "destructive">
 }
 

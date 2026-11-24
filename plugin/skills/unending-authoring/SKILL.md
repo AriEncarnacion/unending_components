@@ -38,6 +38,7 @@ After building a new entry, you may propose a tuning per system: write `design-s
 
 - Follow the `unending-flavor` skill. Build from stock components first and only then write custom markup.
 - Name things for the intent: `review-deck`, not `swipe-cards`.
+- No code comments, TSDoc on props included (`unending/no-comments`). Let names and types carry meaning, with units as type aliases declared in the entry (`EpochMs`, `Pixels`). A rule the caller must follow goes in the README and in `docs`.
 - Status starts at `draft`. Ari promotes entries to `refined` or `stable`.
 - Write down what is left open. Anything the stock system can't express belongs under "Not yet decided" in the README, for Ari to review. Never resolve it silently with custom colors or one-off styles.
 - Credit the origin in `meta.origin` and the README: harvested from an app, rebuilt from a package (with its license), or designed from intent.

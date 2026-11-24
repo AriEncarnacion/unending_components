@@ -263,7 +263,7 @@
           "type": "registry:component"
         }
       ],
-      "docs": "Give the deck's parent an explicit height. Exports ReviewDeck, createReviewActions and classifyGesture.",
+      "docs": "Give the deck's parent an explicit height. The queue is controlled: remove items[0] once onDecision succeeds. Exports ReviewDeck, createReviewActions and classifyGesture.",
       "meta": {
         "entry": true,
         "intent": "Work through a stack of yes-or-no decisions quickly, with a way to put one off for later.",
@@ -295,7 +295,7 @@
           "type": "registry:component"
         }
       ],
-      "docs": "Render PageNav inside SidebarProvider, next to SidebarInset. Pass currentPath and renderLink from your router.",
+      "docs": "Render PageNav inside SidebarProvider, next to SidebarInset. Pass currentPath and renderLink from your router. renderLink must spread every prop onto the link, or the active styling and aria-current are lost.",
       "meta": {
         "entry": true,
         "intent": "Move between the pages of an app and always know where you are.",
