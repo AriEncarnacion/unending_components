@@ -24,7 +24,7 @@ Then register it:
   - `files`.
   - `docs`: setup the consumer must do.
   - `meta: { entry: true, intent, status: "draft", origin }`.
-- Add the demo to the `demos` map in `components/showcase/demo-view.tsx`. It's a client module on purpose: imported by a server component, every demo's code would load on every page.
+- `npm run registry:build` adds the demo to the generated map in `components/showcase/demo-loaders.ts`. Don't edit that file by hand.
 - Set `meta.minWidth` (px) in `registry.json` if the entry can't work down to 320px, WCAG's reflow width, and say why in its README.
 - If the entry needs a full page, such as an app shell, add a frame under `app/[system]/(frame)/preview/[name]` and embed it with an iframe whose `src` is `/<system>/preview/<name>` (read `system` with `useParams`).
 
