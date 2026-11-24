@@ -22,7 +22,6 @@ function ContrastBadge({ fg, bg, mounted }: { fg: string; bg: string; mounted: b
   return (
     <Badge
       variant="outline"
-      // Its own surface, so it reads on any swatch.
       className={cn(
         "border-transparent bg-background font-mono font-normal tabular-nums shadow-xs",
         level === "Fail" ? "text-destructive" : "text-foreground"
@@ -50,7 +49,6 @@ function Swatch({
   onSelect: () => void
 }) {
   const scope = scheme === "dark" ? "dark ds-dark" : "ds-light"
-  // Lines are judged against the page; fills against their own foreground.
   const against = role.on ? values[role.on] : values.background
   return (
     <button

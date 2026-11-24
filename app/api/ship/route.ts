@@ -1,5 +1,3 @@
-// Dev-only: ship design systems to their own GitHub repos, roll back, and pull
-// them. Everything runs through your own git and gh login.
 import { readCommitted } from "@/lib/design-systems/load"
 import { idPattern } from "@/lib/design-systems/schema"
 import { guardDevRead, guardDevWrite } from "@/lib/dev-guard"
@@ -35,7 +33,6 @@ export async function POST(request: Request) {
     if (body.action === "pull") return json({ job: startPull() })
     if (body.action !== "ship" && body.action !== "rollback") return json({ error: "Unknown action." }, 400)
     if (typeof body.systemId !== "string" || !idPattern.test(body.systemId)) return json({ error: "Invalid system id." }, 400)
-    // The name comes from the saved files, never from the request.
     const committed = (await readCommitted()).find((c) => c.system.id === body.systemId)
     if (!committed) return json({ error: "Save the system first." }, 400)
     const name = committed.system.name

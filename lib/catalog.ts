@@ -1,6 +1,5 @@
 import registry from "@/registry.json"
 
-/** Where the registry lives. Entries install as `<REGISTRY_ADDRESS>/<name>`. */
 export const REGISTRY_ADDRESS = "AriEncarnacion/unending_components"
 
 export type EntryStatus = "draft" | "refined" | "stable"
@@ -45,7 +44,6 @@ export function getEntry(name: string) {
   return entries.find((entry) => entry.name === name)
 }
 
-/** In a project linked to a design system (/unending:setup), entries install tuned for it. */
 export function installCommand(name: string) {
   return `npx shadcn@4.23.0 add @unending/${name}`
 }

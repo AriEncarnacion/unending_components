@@ -22,21 +22,15 @@ import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useEntryTuning } from "@/lib/tuning"
 
-/** Placeholder for a field whose value differs across a multi-selection. */
 export const MIXED = "Mixed"
 
 type InspectorPanelProps = Omit<React.ComponentProps<"aside">, "title"> & {
-  /** What is selected, e.g. "Alex · Override". Omit when nothing is selected. */
   title?: React.ReactNode
-  /** The kind of thing selected, e.g. "Shift". */
   kind?: string
-  /** How many things are selected. Above one, the header says so. */
   count?: number
-  /** Shows Revert when there are unsaved edits. */
   dirty?: boolean
   onRevert?: () => void
   onClose?: () => void
-  /** Shown when nothing is selected. */
   empty?: React.ReactNode
 }
 
@@ -58,7 +52,6 @@ function InspectorPanel({
       data-slot="inspector-panel"
       aria-label={kind ? `${kind} inspector` : "Inspector"}
       className={cn(
-        // A size container: rows stack when the panel itself is narrow.
         "@container/inspector-panel flex min-h-0 w-full flex-col overflow-hidden rounded-xl border bg-card text-card-foreground",
         className
       )}
@@ -102,13 +95,6 @@ function InspectorPanel({
           )}
         </div>
       ) : (
-        // Each row is sized between its minimum and its content. Content
-        // outside sections keeps its full height; a section's minimum is its
-        // header. The rest of the height is split evenly, a section never
-        // takes more than its content, and what it doesn't need goes to the
-        // others. Open sections then scroll on their own, so nothing outside
-        // them moves. The body itself scrolls only if even the headers and
-        // the content outside sections don't fit.
         <div
           data-slot="inspector-body"
           className="grid min-h-0 flex-1 auto-rows-[minmax(auto,max-content)] content-start overflow-y-auto overscroll-contain"
@@ -122,7 +108,6 @@ function InspectorPanel({
 
 type InspectorSectionProps = Omit<React.ComponentProps<typeof Collapsible>, "title"> & {
   title: React.ReactNode
-  /** Short summary shown beside the title while the section is closed. */
   summary?: React.ReactNode
 }
 
@@ -158,10 +143,6 @@ function InspectorSection({
         className="flex h-(--collapsible-panel-height) min-h-0 flex-col overflow-hidden transition-[height] data-ending-style:h-0 data-starting-style:h-0"
         style={{ transitionDuration: `${tuning.sectionMs}ms` }}
       >
-        {/* Its own scroll, with the scrollbar in a gutter of its own: 6px in
-            from the panel's edge, 10px wide, then the same 16px of space
-            before the content as on the left. Every section reserves the
-            gutter, scrolling or not, so rows line up across sections. */}
         <ScrollArea className="mr-1.5 mb-1.5 flex min-h-0 flex-1 flex-col [&>[data-slot=scroll-area-viewport]]:min-h-0 [&>[data-slot=scroll-area-viewport]]:overscroll-contain">
           <div className="flex flex-col gap-4 pt-1 pr-6.5 pb-4 pl-4">{children}</div>
         </ScrollArea>
@@ -172,19 +153,12 @@ function InspectorSection({
 
 type InspectorRowProps = Omit<React.ComponentProps<typeof Field>, "children"> & {
   label: React.ReactNode
-  /** The id of the control, so the label focuses it. */
   htmlFor?: string
   hint?: React.ReactNode
-  /** Marks the row as having different values across the selection. */
   mixed?: boolean
   children: React.ReactNode
 }
 
-/**
- * A compact label-beside-control row, the inspector's unit of editing. In a
- * panel narrower than 24rem the label sits above the control, so neither the
- * control nor its hint is squeezed.
- */
 function InspectorRow({ label, htmlFor, hint, mixed, className, children, ...props }: InspectorRowProps) {
   return (
     <Field
@@ -197,7 +171,6 @@ function InspectorRow({ label, htmlFor, hint, mixed, className, children, ...pro
       )}
       {...props}
     >
-      {/* The badge wraps below as a whole rather than splitting the label. */}
       <FieldLabel htmlFor={htmlFor} className="flex-wrap gap-x-1 gap-y-0.5 text-xs font-normal text-muted-foreground">
         <span>{label}</span>
         {mixed ? (

@@ -1,27 +1,16 @@
-// Theme presets: map palette scales onto every stock shadcn colour token, for
-// light and dark, following shadcn's recipe (one neutral for surfaces, lines
-// and text; one brand colour for primary, ring and charts) and Radix step
-// roles, then enforce contrast by walking along the scale until each pair passes.
-
 import { deltaE, oklchToOklab, STEPS, toCss, wcag, type Oklch, type Scale } from "./palette"
 
 export type Recipe = {
   id: string
   name: string
-  /** One line on the look. */
   description: string
-  /** Why the colours belong together. */
   theory: string
   neutral: string
-  /** Scale for primary, or "mono" for shadcn's near-black primary. */
   primary: string | "mono"
-  /** Tints hover and highlight surfaces. Defaults to the neutral. */
   accent?: string
   danger: string
   charts: [string, string, string, string, string]
-  /** Light background from a step instead of the neutral's lightest. */
   surface?: { scale: string; step: number }
-  /** 0-based primary step per scheme, when the brand colour should be exact. */
   primaryStep?: { light?: number; dark?: number }
 }
 
@@ -117,13 +106,9 @@ export type PresetResult = {
   light: Record<string, string>
   dark: Record<string, string>
   checks: Check[]
-  /** Scales the recipe needs that the palette no longer has. */
   missing: string[]
 }
 
-// ── Helpers ─────────────────────────────────────────────────────────────────
-
-/** Blend in OKLab, t = 0 gives a, 1 gives b. */
 function mix(a: Oklch, b: Oklch, t: number): Oklch {
   const [l1, a1, b1] = oklchToOklab(a)
   const [l2, a2, b2] = oklchToOklab(b)
@@ -140,13 +125,11 @@ function nearestL(scale: Scale, l: number) {
   return best
 }
 
-/** From `start`, step toward darker (+1) or lighter (-1) until `ok` holds. */
 function walk(scale: Scale, start: number, direction: 1 | -1, ok: (color: Oklch) => boolean) {
   for (let i = start; i >= 0 && i < STEPS; i += direction) if (ok(scale.steps[i])) return scale.steps[i]
   return scale.steps[direction === 1 ? STEPS - 1 : 0]
 }
 
-/** The candidate with the most contrast against the background. */
 function bestInk(background: Oklch, candidates: Oklch[]) {
   return candidates.reduce((best, c) => (wcag(c, background) > wcag(best, background) ? c : best))
 }
@@ -171,8 +154,6 @@ function build(scheme: "light" | "dark", recipe: Recipe, get: (id: string) => Sc
   const raised = light ? background : mix(n[STEPS - 1], n[STEPS - 2], 0.5)
   const quiet = light ? mix(background, n[1], 0.4) : n[STEPS - 2]
 
-  // Primary: the brand step, then moved along the scale until it stands off
-  // the page (3:1) and carries its own text (4.5:1).
   let primary: Oklch
   if (!P) primary = light ? n[STEPS - 1] : n[1]
   else {
@@ -192,13 +173,9 @@ function build(scheme: "light" | "dark", recipe: Recipe, get: (id: string) => Sc
   const accent = A ? (light ? A.steps[1] : A.steps[STEPS - 2]) : quiet
   const accentInk = A ? bestInk(accent, [A.steps[0], A.steps[STEPS - 1], foreground]) : foreground
   const destructive = walk(D, nearestL(D, light ? 0.55 : 0.7), darker, (c) => wcag(c, background) >= 4.5)
-  // Status colours work like destructive: text and tints on the page.
   const status = (id: string) => walk(get(id), nearestL(get(id), light ? 0.55 : 0.75), darker, (c) => wcag(c, background) >= 4.5)
   const ringScale = P ?? N
   const ring = walk(ringScale, nearestL(ringScale, light ? 0.62 : 0.55), darker, (c) => wcag(c, background) >= 3)
-  // Charts: each series takes the step (3:1 against the page) furthest from
-  // the series before it, so a muted palette still separates by lightness
-  // as well as hue. That also helps readers with colour-vision deficiency.
   const target = light ? 0.58 : 0.72
   const charts: Oklch[] = []
   for (const id of recipe.charts) {
@@ -231,7 +208,6 @@ function build(scheme: "light" | "dark", recipe: Recipe, get: (id: string) => Sc
     success: status("success"),
     warning: status("warning"),
     info: status("info"),
-    // shadcn draws dark-mode lines as translucent light, so they suit any surface.
     border: light ? n[1] : line(0.1),
     input: light ? mix(n[1], n[2], 0.5) : line(0.15),
     ring,
@@ -279,7 +255,6 @@ function checksFor(scheme: "light" | "dark", colors: Colors): Check[] {
     const value = wcag(a, b)
     return [{ scheme, label, value, min, unit: "ratio" as const, pass: value >= min }]
   })
-  // Chart series should be told apart from each other, not just the page.
   const series = [1, 2, 3, 4, 5].map((i) => colors[`chart-${i}`]).filter((c): c is Oklch => typeof c !== "string")
   let closest = Infinity
   for (let i = 0; i < series.length; i++)

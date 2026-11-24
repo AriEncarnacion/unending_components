@@ -17,16 +17,15 @@ import { useEntryTuning } from "@/lib/tuning"
 const HOUR = 3_600_000
 const DAY = 24 * HOUR
 
+export type EpochMs = number
+export type DurationMs = number
+
 export type TimelineEvent = {
   id: string
-  /** Epoch milliseconds. */
-  start: number
-  /** Epoch milliseconds, exclusive. */
-  end: number
+  start: EpochMs
+  end: EpochMs
   label: string
-  /** Replaces part of another event. Drawn with a dashed edge. */
   override?: boolean
-  /** One of the five chart colors, to tell people or kinds apart. */
   tone?: 1 | 2 | 3 | 4 | 5
 }
 
@@ -34,7 +33,6 @@ export type TimelineLane = {
   id: string
   label: string
   events: TimelineEvent[]
-  /** Shown in place of events when none are in view. */
   emptyLabel?: string
 }
 
@@ -43,31 +41,22 @@ export type TimelineScrubberProps = Omit<
   "onChange" | "defaultValue"
 > & {
   lanes: TimelineLane[]
-  /** The present moment. Defaults to the clock, ticking every 15 seconds. */
-  now?: number
-  /** How much time the track shows at once, in ms. Defaults to 14 days. */
-  span?: number
-  /** How far either side of now the scrubber can travel. Defaults to 90 days. */
-  range?: number
-  /** The moment under the playhead (controlled). */
-  value?: number
-  /** The moment under the playhead at first render. Defaults to now. */
-  defaultValue?: number
-  onValueChange?: (time: number) => void
-  /** Settle on the nearest event edge after a drag or flick. Defaults to true. */
+  now?: EpochMs
+  span?: DurationMs
+  range?: DurationMs
+  value?: EpochMs
+  defaultValue?: EpochMs
+  onValueChange?: (time: EpochMs) => void
   snapToEdges?: boolean
-  formatTime?: (time: number) => string
-  /** Replaces the per-lane summary below the track. */
+  formatTime?: (time: EpochMs) => string
   renderDetail?: (
     lane: TimelineLane,
     event: TimelineEvent | undefined,
-    at: number,
-    now: number
+    at: EpochMs,
+    now: EpochMs
   ) => React.ReactNode
 }
 
-// Tones keep the muted fill and mark the leading edge, so they stay legible
-// however close the chart colors sit to the background.
 const toneClass: Record<NonNullable<TimelineEvent["tone"]>, string> = {
   1: "shadow-[inset_3px_0_0_var(--color-chart-1)]",
   2: "shadow-[inset_3px_0_0_var(--color-chart-2)]",
@@ -121,10 +110,6 @@ function describeRemaining(event: TimelineEvent, now: number) {
   return `${duration} left`
 }
 
-/**
- * Splits base events around overrides so each moment has exactly one owner.
- * Use it for rotations where someone covers part of another person's slot.
- */
 export function withOverrides(
   events: TimelineEvent[],
   overrides: TimelineEvent[]
@@ -148,8 +133,6 @@ export function withOverrides(
   return result.sort((a, b) => a.start - b.start)
 }
 
-// A shared 15-second clock. The server snapshot is null so the first client
-// render matches the server, and the real time arrives right after hydration.
 let clockTime = Date.now()
 function subscribeClock(notify: () => void) {
   clockTime = Date.now()
@@ -223,8 +206,6 @@ function TimelineScrubber({
     defaultValue
   )
   const center = value ?? internal ?? now ?? 0
-  // The latest playhead for animation frames and pointer handlers, which run
-  // between renders. moveTo also writes it directly while animating.
   const current = React.useRef(center)
   React.useLayoutEffect(() => {
     current.current = center
@@ -311,7 +292,6 @@ function TimelineScrubber({
 
   React.useEffect(() => stop, [stop])
 
-  // Horizontal wheel and trackpad scrolling, settling on an edge when it stops.
   React.useEffect(() => {
     const element = track.current
     if (!element) return
@@ -377,7 +357,6 @@ function TimelineScrubber({
     setDragging(false)
     const velocity =
       performance.now() - active.lastTime < 80 ? active.velocity : 0
-    // A flick carries on, but never further than one visible span.
     const carry = Math.max(-span, Math.min(span, velocity * flickCarry))
     animateTo(snap(current.current + carry))
   }
@@ -440,7 +419,6 @@ function TimelineScrubber({
     }
   }
 
-  // The day ruler sits under the first lane, as in a two-lane rota.
   type Row = { kind: "lane"; lane: TimelineLane } | { kind: "ticks" }
   const rows: Row[] = lanes.flatMap((lane, index): Row[] =>
     index === 0
@@ -584,12 +562,10 @@ function TimelineScrubber({
               </div>
             )
           })}
-          {/* playhead: the moment being inspected */}
           <span
             aria-hidden="true"
             className="pointer-events-none absolute -inset-y-1 left-1/2 w-0.5 -translate-x-1/2 bg-primary"
           />
-          {/* the real present, once it has moved off the playhead */}
           {showNowMarker && (
             <span
               aria-hidden="true"
@@ -600,8 +576,6 @@ function TimelineScrubber({
         </div>
       </div>
 
-      {/* Measured in hours from now, so assistive tech reads "+36 hours" rather
-          than a timestamp; the stock Slider has no custom value text. */}
       <Slider
         aria-label={`Hours from now. Showing ${longFormat.format(center)}`}
         min={Math.round((min - now) / HOUR)}

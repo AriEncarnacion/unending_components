@@ -4,7 +4,6 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* Space between paragraphs of running text: space-y-flow, mt-flow. Not inline, so the tuner can change it live. */
 @theme {
     --spacing-flow: 1.25em;
 }
@@ -140,7 +139,6 @@
   html {
     @apply font-sans;
     }
-  /* Semantic headings use the heading face; stock titles opt in with font-heading. */
   h1, h2, h3, h4, h5, h6 {
     @apply font-heading;
     }

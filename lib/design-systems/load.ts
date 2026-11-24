@@ -1,5 +1,3 @@
-// Reads and writes design systems on disk. Server only: the catalog layout
-// reads them at render, the dev-only Save route writes them.
 import { createHash } from "node:crypto"
 import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises"
 import path from "node:path"
@@ -19,7 +17,6 @@ export const systemsDir = path.join(process.cwd(), "design-systems")
 
 const readJson = async <T>(file: string) => JSON.parse(await readFile(file, "utf8")) as T
 
-/** A short fingerprint of a system's files, so a draft can tell when they changed under it. */
 export function hashOf(working: Working) {
   return createHash("sha1").update(serialize({ system: working.system, entries: working.entries })).digest("hex").slice(0, 12)
 }
@@ -63,7 +60,6 @@ function dirFor(id: string) {
   return path.join(systemsDir, id)
 }
 
-/** Writes a system and its entry tunings. Entry files that are gone or empty are deleted; proposals are left alone. */
 export async function writeWorking(working: Working) {
   const dir = dirFor(working.system.id)
   await mkdir(path.join(dir, "entries"), { recursive: true })

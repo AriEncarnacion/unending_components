@@ -1,26 +1,4 @@
 #!/usr/bin/env node
-// Size audit: loads a catalog entry (or any page) at every device checkpoint
-// from its minimum width to 2560px, one size at a time in one headless Chrome
-// tab, runs the layout check at each, and saves a screenshot with problems
-// outlined. Claude reads the report and the screenshots and suggests fixes.
-//
-//   node audit-sizes.mjs --entry review-deck            # in the catalog repo
-//   node audit-sizes.mjs --url http://127.0.0.1:3000/x  # any page
-//
-// Options:
-//   --entry <name>        catalog entry; loads /<system>/frame/<name>
-//   --url <url>           any page instead (window sizes only)
-//   --root <selector>     what to check on a --url page (default: body)
-//   --system <id>         design system for --entry (default: stock)
-//   --base <url>          dev server (default: http://127.0.0.1:3000)
-//   --modes window,container
-//   --schemes light[,dark]
-//   --min <px>            minimum width (default: the entry's meta.minWidth, else 320)
-//   --out <dir>           where to write report.json and screenshots
-//
-// Uses playwright-core with the installed Google Chrome, so there's no browser
-// download. Needs `playwright-core` in the project's devDependencies.
-
 import { createRequire } from "node:module"
 import { mkdir, readFile, writeFile } from "node:fs/promises"
 import { existsSync } from "node:fs"
@@ -108,12 +86,8 @@ try {
           ? `${base}/${system}/frame/${args.entry}${mode === "container" ? `?w=${size.width}` : ""}`
           : args.url
         await page.setViewportSize(viewport)
-        // A fresh load per size: each one tests a first render at that size,
-        // not a resize from the last.
         await page.goto(url, { waitUntil: "load" })
         if (args.entry) {
-          // Set by the frame once the demo is hydrated, fonts are in and it
-          // has painted. Before that the page holds the server HTML.
           await page.waitForFunction(() => document.documentElement.dataset.frameReady === "true", null, {
             timeout: 30_000,
           })
@@ -148,8 +122,6 @@ try {
 const total = results.reduce((sum, result) => sum + result.issues.length, 0)
 await writeFile(path.join(out, "report.json"), JSON.stringify({ subject, min, results }, null, 2))
 
-// A summary Claude can read without opening the JSON: one line per size with
-// problems, the first few findings, and where the screenshot is.
 console.log(`\n${subject}: ${total ? `${total} problem(s)` : "no problems"} across ${results.length} checks (min ${min}px)`)
 for (const result of results.filter((result) => result.issues.length)) {
   console.log(`\n${result.scheme} · ${result.mode} · ${result.width}px (${result.device}) — ${result.screenshot}`)

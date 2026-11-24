@@ -117,8 +117,6 @@ function LiveChat() {
   const chat = useScriptedAgent(seed)
   const { reply, cancel } = chat
   React.useEffect(() => {
-    // Answer the seeded question. Cancelling on cleanup lets Strict Mode's
-    // mount, unmount, mount cycle restart the reply instead of stranding it.
     reply(REPLY)
     return cancel
   }, [reply, cancel])

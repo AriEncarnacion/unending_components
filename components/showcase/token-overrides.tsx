@@ -12,7 +12,6 @@ import { EntryTuningContext } from "@/lib/tuning"
 
 export type FontOption = { id: string; label: string; family: string }
 
-/** Theme-wide variables that can be tuned live. */
 export type ThemeVar =
   | "--radius"
   | "--spacing"
@@ -38,7 +37,6 @@ export const themeDefaults: Record<ThemeVar, string> = {
   "--font-heading": "",
   "--font-mono": "",
   "--text-sm": stockTextSm,
-  // Stock has no single body line height: each text step keeps Tailwind's own.
   "--leading-body": "",
   "--spacing-flow": stockFlow,
   "--default-transition-duration": "150ms",
@@ -48,21 +46,16 @@ export const themeDefaults: Record<ThemeVar, string> = {
 const STORAGE_KEY = "unending:token-overrides"
 
 type Context = {
-  /** The active system's differences from stock, resolved to CSS values. */
   overrides: Overrides
-  /** Base values merged with overrides, per scheme. */
   light: Record<string, string>
   dark: Record<string, string>
   theme: Record<ThemeVar, string>
   fonts: { sans: FontOption[]; heading: FontOption[]; mono: FontOption[] }
-  /** Sets a colour token in the active system. A value that is exactly a palette step is stored as a reference to it. */
   setColor: (scheme: "light" | "dark", token: string, value: string | undefined) => void
   setTheme: (name: ThemeVar, value: string | undefined) => void
-  /** Replaces every colour override in both schemes at once (a preset). Theme variables are kept. */
   setColors: (colors: { light: Record<string, string>; dark: Record<string, string> }) => void
   reset: () => void
   changed: number
-  /** The raw stored values (palette refs kept), for undoing a preset. */
   stored: { light: Record<string, string>; dark: Record<string, string> }
 }
 
@@ -82,10 +75,8 @@ function block(selector: string, vars: Record<string, string | undefined>) {
   return body ? `${selector} {\n${body}\n}` : ""
 }
 
-/** A colour that is exactly one of the palette's steps becomes a reference to that step. */
 export function toStored(value: string, palette: Palette): string {
   if (value.startsWith("palette:") || value.startsWith("token:")) return value
-  // Translucent values (dark-mode lines) keep their alpha, so they stay raw.
   if (value.includes("/")) return value
   const color = parseColor(value)
   if (!color) return value
@@ -130,11 +121,6 @@ export function TokenOverridesProvider({
   const dark = { ...baseTokens.dark, ...overrides.dark }
   const theme = { ...themeDefaults, ...overrides.theme } as Record<ThemeVar, string>
 
-  // Light overrides go on the root only when it isn't dark; dark overrides
-  // follow the .dark class wherever it is. .ds-light and .ds-dark are full
-  // scopes the system page uses to show both schemes side by side. The
-  // palette's steps are variables too, and each tuned entry gets rules scoped
-  // to its data-slot.
   const css = [
     active ? block("html:root", paletteVars(palette)) : "",
     block("html:root:not(.dark)", overrides.light),
@@ -219,7 +205,6 @@ export function TokenOverridesProvider({
   )
 }
 
-/** The pre-design-systems tuner state in this browser, if any (migrated into a first system). */
 export function readLegacyOverrides(): Overrides | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
@@ -239,7 +224,6 @@ export function clearLegacyOverrides() {
   } catch {}
 }
 
-/** CSS to paste into app/globals.css: the full :root and .dark blocks. */
 export function exportCss(context: Pick<Context, "light" | "dark" | "theme" | "fonts">) {
   const { light, dark, theme, fonts } = context
   const lines = [

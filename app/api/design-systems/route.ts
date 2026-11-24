@@ -1,6 +1,3 @@
-// Dev-only writes for the design-system tuner: Save, Delete and dismissing a
-// proposal. The catalog is a local tool, so this refuses to run anywhere but
-// `next dev`, and it only ever touches design-systems/.
 import { entries } from "@/lib/catalog"
 import { deleteProposal, deleteSystem, readCommitted, writeWorking } from "@/lib/design-systems/load"
 import { idPattern, validate, type Working } from "@/lib/design-systems/schema"

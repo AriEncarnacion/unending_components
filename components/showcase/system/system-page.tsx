@@ -35,7 +35,6 @@ const sections = [
   ["layout", "Breakpoints"],
 ] as const
 
-/** Reads the open entry from the URL (?entry=<name>). */
 export function SystemPageWithParams() {
   return <SystemPage entry={useSearchParams().get("entry")} />
 }
@@ -45,8 +44,6 @@ export function SystemPage({ entry = null }: { entry?: string | null }) {
   const { href } = useDesignSystems()
   const router = useRouter()
   const [token, setToken] = React.useState("primary")
-  // The scheme being tuned is the site theme, so the tuner toggle and the
-  // header theme button always agree; flipping either flips both.
   const { resolvedTheme, setTheme } = useTheme()
   const scheme: "light" | "dark" = resolvedTheme === "dark" ? "dark" : "light"
   const setScheme = (next: "light" | "dark") => setTheme(next)
@@ -55,7 +52,6 @@ export function SystemPage({ entry = null }: { entry?: string | null }) {
     id: "unending:system-split",
     panelIds: entry ? ["system", "entry"] : ["system"],
     storage: panelStorage,
-    // Only sizes the person chose; ones forced by a small window aren't kept.
     onlySaveAfterUserInteractions: true,
   })
   const hydrated = useHydrated()
@@ -108,7 +104,6 @@ export function SystemPage({ entry = null }: { entry?: string | null }) {
     </div>
   )
 
-  // The columns restore their sizes from localStorage, so they wait for the browser.
   if (!hydrated) return null
   return (
     <ResizablePanelGroup

@@ -16,20 +16,15 @@ import {
 import { Kbd } from "@/components/ui/kbd"
 import { useEntryTuning } from "@/lib/tuning"
 
-/* ------------------------------------------------------------------ */
-/* Gesture: distance commits, direction comes from cones with neutral */
-/* gaps. Screen space: +x is right, +y is down.                        */
-/* ------------------------------------------------------------------ */
-
 export type ReviewDirection = "left" | "down" | "right"
 
+export type Pixels = number
+export type Degrees = number
+
 export type ReviewGesture = {
-  /** Movement below this many pixels is ignored. */
-  deadZone: number
-  /** Distance from origin at which a release decides. */
-  commitDistance: number
-  /** Half-width in degrees of the neutral gaps at 45°, 135° and 270°. */
-  angleBuffer: number
+  deadZone: Pixels
+  commitDistance: Pixels
+  angleBuffer: Degrees
 }
 
 const DEFAULT_GESTURE: ReviewGesture = { deadZone: 18, commitDistance: 110, angleBuffer: 7.5 }
@@ -63,19 +58,13 @@ const unit: Record<ReviewDirection, { x: number; y: number }> = {
   down: { x: 0, y: 1 },
 }
 
-/* ------------------------------------------------------------------ */
-/* Actions, copy and decisions                                         */
-/* ------------------------------------------------------------------ */
-
 export type DecisionValue = boolean | null
 
 export type ReviewAction<A extends string = string> = {
   id: A
   direction: ReviewDirection
   label: string
-  /** Defaults to true for left, null for down and false for right. */
   value?: DecisionValue
-  /** One printable key, matched case-insensitively. */
   shortcut?: string
   icon?: React.ReactNode
   disabled?: boolean
@@ -139,13 +128,10 @@ const tone: Record<ReviewDirection, { tint: string; ink: string; button: "defaul
 }
 
 export type ReviewDeckProps<T, A extends string = DefaultActionId> = {
-  /** Controlled queue; items[0] is the active card. Remove it once onDecision succeeds. */
   items: readonly T[]
   getItemId: (item: T) => string
   renderCard: (item: T) => React.ReactNode
-  /** May return a promise. A rejection restores the card and asks to retry. */
   onDecision: (decision: ReviewDecision<T, A>) => void | Promise<void>
-  /** Restore your previous recorded choice and put its item back at the front. */
   onUndo?: () => void | Promise<void>
   canUndo?: boolean
   actions?: readonly ReviewAction<A>[]
@@ -251,7 +237,6 @@ function ReviewDeck<T, A extends string = DefaultActionId>({
   const [error, setError] = React.useState<string>()
   const [announcement, setAnnouncement] = React.useState("")
 
-  // A new first item ends the previous decision's lock.
   const [seenId, setSeenId] = React.useState(activeId)
   if (seenId !== activeId) {
     setSeenId(activeId)
@@ -350,7 +335,6 @@ function ReviewDeck<T, A extends string = DefaultActionId>({
 
   const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (locked || event.button !== 0 || isInteractive(event.target)) return
-    // Touch and pen drag only from the grip, so card content keeps native scrolling.
     if (event.pointerType !== "mouse" && !(event.target as HTMLElement).closest("[data-review-grip]"))
       return
     event.currentTarget.setPointerCapture(event.pointerId)
@@ -405,8 +389,6 @@ function ReviewDeck<T, A extends string = DefaultActionId>({
       onKeyDown={onKeyDown}
       data-slot="review-deck"
       className={cn(
-        // A size container: the deck lays itself out by its own width, so it
-        // holds up in a sidebar, drawer or pane, not just a narrow window.
         "@container/review-deck flex min-h-[30rem] flex-col gap-4 rounded-xl outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
         className
       )}
@@ -536,12 +518,9 @@ function ReviewDeck<T, A extends string = DefaultActionId>({
         </p>
       ) : null}
 
-      {/* Narrow: the two sideways actions share a row and the down action sits
-          below them, which keeps each button where its drag goes. */}
       <div className="grid grid-cols-2 gap-2 @md/review-deck:grid-cols-3">
         {(["left", "down", "right"] as const).map((direction) => {
           const action = byDirection(direction)
-          // Holds the middle slot in the three-column row; not needed when narrow.
           if (!action) return <span key={direction} className="hidden @md/review-deck:block" />
           return (
             <Button

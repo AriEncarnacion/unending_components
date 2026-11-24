@@ -42,7 +42,6 @@ async function post(body: unknown) {
   return response?.ok ? data : null
 }
 
-/** Where each system stands against its GitHub repo, and any job in progress. Polls while something runs. */
 export function ShipProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = React.useState<ShipState>({ status: {}, jobs: {} })
   const refresh = React.useCallback(async (fresh = false) => {
@@ -62,7 +61,6 @@ export function ShipProvider({ children }: { children: React.ReactNode }) {
     }
   }, [refresh, active])
 
-  // Announce a job finishing, wherever you are in the catalog.
   const previous = React.useRef<Record<string, ShipJob["state"]>>({})
   React.useEffect(() => {
     for (const job of Object.values(state.jobs)) {
@@ -71,7 +69,6 @@ export function ShipProvider({ children }: { children: React.ReactNode }) {
         if (job.state === "shipped") toast.success(job.action === "pull" ? "Pulled design systems" : `${job.systemName}: ${job.step}`, { description: job.note })
         if (job.state === "blocked") toast.error(`${job.systemName} didn't ship`, { description: job.step })
         if (job.state === "failed") toast.error(`${job.systemName}: that didn't work`, { description: job.error })
-        // A rollback rewrites the saved files on disk; reload so every page reads them.
         if (job.action === "rollback" && job.state === "shipped") window.setTimeout(() => window.location.reload(), 1200)
       }
       previous.current[job.systemId] = job.state
@@ -109,7 +106,6 @@ export function useShip() {
   return context
 }
 
-/** What a job is doing or did: steps, findings and what to do next. */
 export function ShipProgress({ job, onRetry }: { job: ShipJob; onRetry?: (options?: ShipOptions) => void }) {
   return (
     <div className="flex flex-col gap-3 text-sm">
@@ -168,7 +164,6 @@ export function ShipBadge({ systemId, saved }: { systemId: string; saved: boolea
   return null
 }
 
-/** Where a system's first ship creates its repo. */
 function NewRepoFields({ id, owners, value, onChange }: { id: string; owners: string[]; value: NewRepo; onChange: (next: NewRepo) => void }) {
   return (
     <div className="flex flex-col gap-3">
@@ -215,14 +210,12 @@ function NewRepoFields({ id, owners, value, onChange }: { id: string; owners: st
   )
 }
 
-/** Whether the active system is shipping right now. */
 export function useShipping() {
   const ds = useDesignSystems()
   const { state } = useShip()
   return busy(state.jobs[ds.active?.system.id ?? ""])
 }
 
-/** Ship from the system menu: saves if needed, then builds, commits, tags and pushes to the system's repo. */
 export function ShipPanel() {
   const ds = useDesignSystems()
   const { state, ship, rollback } = useShip()
@@ -321,12 +314,10 @@ export function ShipPanel() {
   )
 }
 
-/** Pull on the home page: clone or update every design-system repo you or your orgs own. */
 export function PullButton() {
   const { state, pull } = useShip()
   const [open, setOpen] = React.useState(false)
   const job = state.jobs[PULL_JOB]
-  // Pulled files change what's saved here; reload so every page reads them.
   const was = React.useRef(job?.state)
   React.useEffect(() => {
     if (was.current === "running" && job?.state === "shipped" && /cloned|up to date/.test(job.note ?? "")) window.location.reload()

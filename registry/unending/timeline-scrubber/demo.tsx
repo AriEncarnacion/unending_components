@@ -12,7 +12,6 @@ import {
 
 const HOUR = 3_600_000
 const DAY = 24 * HOUR
-// A fixed "now" keeps the demo stable between server and client renders.
 const NOW = new Date(2026, 10, 20, 17, 0).getTime()
 
 const people = ["Rowan", "Jules", "Priya", "Mateo", "Sam", "Noor"]

@@ -78,7 +78,6 @@ function Step({ n, title, children }: { n: number; title: string; children: Reac
   )
 }
 
-/** A small "i" pinned bottom-left that opens a guide to the catalog, its commands and installing from it. */
 export function InfoButton() {
   return (
     <Dialog>

@@ -159,7 +159,6 @@ function ThemeSlider({
   )
 }
 
-/** A theme variable picked from named presets, with its value shown. */
 function PresetSelect({
   name,
   label,
@@ -169,7 +168,6 @@ function PresetSelect({
   name: ThemeVar
   label: string
   options: { name: string; value: string }[]
-  /** The label for "not set", when stock has no single value. */
   stock?: string
 }) {
   const { theme, setTheme, overrides } = useTokens()
@@ -253,7 +251,6 @@ export function Tuner({
             <PresetList compact />
           </InspectorSection>
 
-          {/* Colour starts open, the rest closed, whatever the inspector's default. */}
           <InspectorSection title="Colour" summary={token} defaultOpen>
             <div className="flex items-center gap-2">
               <Select value={token} onValueChange={(value) => value && onTokenChange(value)}>

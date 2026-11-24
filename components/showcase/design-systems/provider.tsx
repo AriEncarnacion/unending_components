@@ -20,8 +20,6 @@ import {
 } from "@/lib/design-systems/schema"
 import { seedKeys, seedScales, slug } from "@/lib/palette"
 
-/** The design systems the tuner holds: committed files, per-system drafts and the active one. */
-
 const DRAFT_PREFIX = "unending:draft:"
 const LIMIT = 100
 const MERGE_MS = 800
@@ -52,25 +50,19 @@ type Api = {
   committed: Committed[]
   systems: SystemSummary[]
   activeId: string
-  /** The active system's working copy (draft if there is one), or null on Stock. */
   active: Working | null
-  /** Any system's working copy: its draft, else its saved files. */
   workingFor: (id: string) => Working | null
   missing: boolean
   readOnly: boolean
-  /** Applies an edit to the active system's draft. On Stock it asks to duplicate instead. */
   update: (recipe: (working: Working) => Working, mergeKey?: string) => void
   undo: () => void
   redo: () => void
   canUndo: boolean
   canRedo: boolean
-  /** Opens a system's catalog pages. */
   select: (id: string) => void
-  /** "/<system>/<path>" for the active system. */
   href: (path?: string) => string
   create: (name: string, start: CreateFrom) => string
   rename: (name: string) => void
-  /** Renames any system (from the home page), as a draft. */
   renameSystem: (id: string, name: string) => void
   remove: (id: string) => Promise<SaveResult>
   discard: (id: string) => void
@@ -79,9 +71,7 @@ type Api = {
   proposals: Record<string, ProposalFile>
   acceptProposal: (entry: string) => Promise<SaveResult>
   rejectProposal: (entry: string) => Promise<SaveResult>
-  /** Registers what happens when someone tries to edit Stock (the "Duplicate to edit" prompt). */
   setReadOnlyHandler: (handler: (() => void) | null) => void
-  /** A name that's free, for New and Duplicate. */
   uniqueName: (base: string) => string
 }
 
@@ -115,7 +105,6 @@ function writeDraft(id: string, draft: Draft | null) {
 
 const same = (a: Working, b: Working) => serialize({ s: a.system, e: a.entries }) === serialize({ s: b.system, e: b.entries })
 
-/** Drops empty entry tunings so "no file" keeps meaning untuned. */
 function tidy(working: Working): Working {
   const entries = Object.fromEntries(Object.entries(working.entries).filter(([, tuning]) => !isEmptyTuning(tuning)))
   return Object.keys(entries).length === Object.keys(working.entries).length ? working : { ...working, entries }
@@ -127,7 +116,6 @@ export function DesignSystemsProvider({
   children,
 }: {
   initial: Committed[]
-  /** The system in the URL (/<system>/...). Omitted on the home page. */
   activeId?: string
   children: React.ReactNode
 }) {
@@ -142,8 +130,6 @@ export function DesignSystemsProvider({
     onReadOnlyEdit.current = handler
   }, [])
 
-  // Restore drafts after hydration, and follow changes made in other
-  // documents (the preview iframes, other tabs).
   React.useEffect(() => {
     const load = () => setDrafts(readDrafts())
     /* eslint-disable react-hooks/set-state-in-effect -- one-time restore from storage */
@@ -172,7 +158,6 @@ export function DesignSystemsProvider({
 
   const resolvedActiveId = activeId
   const active = workingFor(activeId)
-  /** The URL names a system that doesn't exist (yet, until drafts restore). */
   const missing = activeId !== STOCK_ID && !active
 
   const select = React.useCallback(
@@ -184,7 +169,6 @@ export function DesignSystemsProvider({
   )
   const href = React.useCallback((path = "") => `/${activeId}${path}`, [activeId])
 
-  /** Stores a working copy as the draft, or clears the draft when it matches the files again. */
   const putWorking = React.useCallback(
     (id: string, working: Working, savedHash?: string) => {
       const saved = committedFor(id)

@@ -75,8 +75,6 @@ function useRun() {
     timers.current.forEach((id) => window.clearTimeout(id))
     timers.current = []
   }, [])
-  // Schedules the scripted run. The effect starts it on mount; Run again
-  // clears the previous run first.
   const schedule = React.useCallback(() => {
     stop()
     let at = 0
@@ -101,7 +99,6 @@ function useRun() {
       )
       at += ms
     })
-    // Fill results as each step finishes.
     let finish = 0
     script.forEach(({ step, ms }) => {
       finish += ms

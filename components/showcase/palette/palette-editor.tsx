@@ -77,13 +77,11 @@ type Reference = { lightness: number[]; chroma: number[] }
 
 const single = (value: number | readonly number[]) => (Array.isArray(value) ? value[0] : value) as number
 
-/** The scheme being edited is whatever the site is showing. */
 export function useScheme(): "light" | "dark" {
   const { resolvedTheme } = useTheme()
   return resolvedTheme === "dark" ? "dark" : "light"
 }
 
-/** Steps across visible scales nearest a colour, best first. */
 export function nearestSteps(color: Oklch, scales: Scale[], count = 3) {
   return scales
     .filter((scale) => !scale.hidden)
@@ -162,8 +160,6 @@ function NearestList({
   )
 }
 
-// ── Use in theme ────────────────────────────────────────────────────────────
-
 const allTokens = colorGroups.map((group) => ({
   title: group.title,
   tokens: group.roles.flatMap((role) => [role.token, ...(role.on ? [role.on] : [])]),
@@ -217,8 +213,6 @@ function UseInTheme({ color, name }: { color: Oklch; name: string }) {
     </div>
   )
 }
-
-// ── Scale tools ─────────────────────────────────────────────────────────────
 
 function GeneratorControls({ scale, api, reference }: { scale: Scale; api: PaletteApi; reference: Reference }) {
   const generator = scale.generator!
@@ -492,8 +486,6 @@ function ScaleTools({
   )
 }
 
-// ── Editors per target ──────────────────────────────────────────────────────
-
 function StepEditor({
   scale,
   step,
@@ -518,7 +510,6 @@ function StepEditor({
         mapScale(s, scale.id, (sc) => ({
           ...sc,
           steps: sc.steps.map((c, i) => (i === step ? next : c)),
-          // Editing the key step keeps the generator's key in step with it.
           generator: sc.generator && sc.generator.index === step ? { ...sc.generator, key: next } : sc.generator,
         })),
       `step-${scale.id}-${step}-${channel}`

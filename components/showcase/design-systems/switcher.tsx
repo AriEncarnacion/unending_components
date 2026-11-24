@@ -45,7 +45,6 @@ export function UnsavedDot({ className }: { className?: string }) {
   return <span aria-label="Unsaved changes" className={cn("size-1.5 shrink-0 rounded-full bg-primary", className)} />
 }
 
-/** Name a new system: a fresh one on the shadcn base, or a copy of `from`. */
 export function NewSystemDialog({
   open,
   onOpenChange,
@@ -284,7 +283,6 @@ function SaveDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open
   )
 }
 
-/** Turns the pre-design-systems tuner state in this browser into a first system. */
 export function MigrationDialog({ fonts, onCreated }: { fonts: FontOption[]; onCreated: (id: string) => void }) {
   const ds = useDesignSystems()
   const [open, setOpen] = React.useState(false)
@@ -369,7 +367,6 @@ export function MigrationDialog({ fonts, onCreated }: { fonts: FontOption[]; onC
   )
 }
 
-// The parts of the Navigation API the leave guard uses; TypeScript's DOM types don't include it yet.
 type TraverseEvent = Event & {
   navigationType: "push" | "replace" | "reload" | "traverse"
   cancelable: boolean
@@ -377,15 +374,9 @@ type TraverseEvent = Event & {
 }
 type NavigationApi = EventTarget & { traverseTo: (key: string) => unknown }
 
-/**
- * Back to all design systems. With unsaved changes, leaving asks to save or
- * discard them first: from this button, and from the browser's back and
- * forward buttons where the browser lets a page cancel them (Navigation API).
- */
 export function BackButton() {
   const ds = useDesignSystems()
   const router = useRouter()
-  // Where to go once the changes are saved or discarded.
   const [leave, setLeave] = React.useState<(() => void) | null>(null)
   const [saving, setSaving] = React.useState(false)
   const active = ds.active
@@ -419,7 +410,6 @@ export function BackButton() {
     setLeave(null)
     guard.current.bypass = true
     next?.()
-    // Back on the page (a failed traverse, or this component staying mounted), guard again.
     window.setTimeout(() => (guard.current.bypass = false), 1000)
   }
 
@@ -488,7 +478,6 @@ export function BackButton() {
   )
 }
 
-/** The open system's name, centered in the top bar. */
 export function SystemName() {
   const ds = useDesignSystems()
   const dirty = !!ds.systems.find((s) => s.id === ds.activeId)?.dirty
@@ -503,7 +492,6 @@ export function SystemName() {
   )
 }
 
-/** The top-right menu inside a system: Save, Ship and the theme. */
 export function SystemMenu() {
   const ds = useDesignSystems()
   const { theme, setTheme } = useTheme()
@@ -513,7 +501,6 @@ export function SystemMenu() {
   const dirty = !!ds.systems.find((s) => s.id === ds.activeId)?.dirty
   const lastPrompt = React.useRef(0)
 
-  // Editing the read-only shadcn base points you home to start a system.
   const { setReadOnlyHandler } = ds
   React.useEffect(() => {
     setReadOnlyHandler(() => {

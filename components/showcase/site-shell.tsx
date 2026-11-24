@@ -36,11 +36,8 @@ export function SiteShell({
   children: React.ReactNode
 }) {
   const { href } = useDesignSystems()
-  // Paths within the system: "/<system>/palette" → "/palette".
   const pathname = "/" + usePathname().split("/").slice(2).join("/")
   const [sidebarWidth, setSidebarWidth, saveSidebarWidth] = useSidebarWidth()
-  // The design system and entry pages lay out their own panes at full
-  // height, each scrolling on its own.
   const split = pathname === "/system" || pathname.startsWith("/c/")
   return (
     <SidebarProvider
@@ -119,11 +116,6 @@ function EntryLinksWithParams({ entries, pathname }: { entries: NavEntry[]; path
   return <EntryLinks entries={entries} pathname={pathname} openEntry={openEntry} />
 }
 
-/**
- * On the design system page, an entry opens in a pane
- * beside the system instead of replacing it. Everywhere else it navigates to
- * the entry's own page.
- */
 function EntryLinks({
   entries,
   pathname,

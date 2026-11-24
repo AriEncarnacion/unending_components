@@ -3,7 +3,6 @@
 import * as React from "react"
 import { cn } from "cn"
 
-/** True after hydration; use it to gate values that only the browser can compute. */
 export function useMounted() {
   return React.useSyncExternalStore(
     () => () => {},
@@ -63,7 +62,6 @@ export function Subsection({
   )
 }
 
-/** Mono label/value pair for token readouts. */
 export function Readout({ label, value, className }: { label?: string; value: React.ReactNode; className?: string }) {
   return (
     <span className={cn("font-mono text-xs text-muted-foreground tabular-nums", className)}>
@@ -73,7 +71,6 @@ export function Readout({ label, value, className }: { label?: string; value: Re
   )
 }
 
-/** Converts a CSS length in rem or px to px. */
 export function toPx(value: string) {
   const number = parseFloat(value)
   if (Number.isNaN(number)) return 0

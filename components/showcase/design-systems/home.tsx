@@ -43,7 +43,6 @@ function ThemeToggle() {
   )
 }
 
-/** A small screen painted in the system's own tokens, fonts and palette. */
 function Thumbnail({ working, fonts }: { working: Working; fonts: FontOption[] }) {
   const { resolvedTheme } = useTheme()
   const scheme = resolvedTheme === "dark" ? "dark" : "light"
@@ -161,7 +160,6 @@ function SystemCard({ id, fonts, onDialog }: { id: string; fonts: FontOption[]; 
   )
 }
 
-/** Every design system, Figma-home style: open one, duplicate, rename, delete or start fresh. */
 export function SystemsHome({ fonts }: { fonts: FontOption[] }) {
   const ds = useDesignSystems()
   const router = useRouter()

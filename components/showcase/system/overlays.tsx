@@ -119,7 +119,6 @@ import {
 
 import { Readout, Section } from "./section"
 
-/** One overlay: what it is, how it moves, and the live control that opens it. */
 function Tile({
   name,
   motion,
@@ -169,7 +168,6 @@ function CommandPalette() {
         title="Search the rota"
         description="Jump to a person, shift or action"
       >
-        {/* The stock dialog doesn't supply the cmdk root, so the list needs its own Command. */}
         <Command>
           <CommandInput placeholder="Search people, shifts and actions" />
           <CommandList>

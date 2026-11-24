@@ -1,20 +1,10 @@
-// Guards the catalog's dev-only routes (Save, Delete, Ship) against other
-// sites in your browser: cross-site POSTs (CSRF) and DNS rebinding.
-// Returns a Response to send back when the request isn't allowed.
-//
-// These checks read headers, which any non-browser client can set, so they
-// don't stop other machines. That's the dev server's job: `npm run dev`
-// listens on 127.0.0.1 only, so nothing else on the network can connect.
-
 const localHosts = new Set(["localhost", "127.0.0.1", "[::1]"])
 
 const deny = (error: string, status = 403) => Response.json({ error }, { status })
 
-/** For dev-only reads that still run git and gh (Ship's status): local dev server, local Host, same-origin. */
 export function guardDevRead(request: Request): Response | null {
   if (process.env.NODE_ENV !== "development") return deny("This only works on the local dev server (npm run dev).")
 
-  // DNS rebinding: a hostile name that resolves to 127.0.0.1 still carries its own Host header.
   const host = request.headers.get("host") ?? ""
   if (!localHosts.has(host.replace(/:\d+$/, ""))) return deny("Requests must come to localhost.")
 
@@ -28,11 +18,9 @@ export function guardDevWrite(request: Request): Response | null {
   if (blocked) return blocked
   const host = request.headers.get("host") ?? ""
 
-  // A JSON content type can't be sent cross-site without a CORS preflight, which this route never approves.
   if (!request.headers.get("content-type")?.toLowerCase().startsWith("application/json"))
     return deny("Requests must be JSON.", 415)
 
-  // Browsers say where a request came from; only the catalog's own pages may write.
   const origin = request.headers.get("origin")
   if (origin) {
     try {

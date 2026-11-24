@@ -67,7 +67,7 @@ Don't use it when people need to compare items or decide on several at once. Use
 
 **Built from:** `button`, `card`, `empty`, `kbd`
 
-**After installing:** Give the deck's parent an explicit height. Exports ReviewDeck, createReviewActions and classifyGesture.
+**After installing:** Give the deck's parent an explicit height. The queue is controlled: remove items[0] once onDecision succeeds. Exports ReviewDeck, createReviewActions and classifyGesture.
 
 **Install:** `npx shadcn@4.23.0 add <owner/repo>/review-deck#<version>`
 
@@ -86,7 +86,7 @@ For deeper trees use a file-tree pattern, and for a handful of top-level pages u
 
 **Built from:** `collapsible`, `sidebar`
 
-**After installing:** Render PageNav inside SidebarProvider, next to SidebarInset. Pass currentPath and renderLink from your router.
+**After installing:** Render PageNav inside SidebarProvider, next to SidebarInset. Pass currentPath and renderLink from your router. renderLink must spread every prop onto the link, or the active styling and aria-current are lost.
 
 **Install:** `npx shadcn@4.23.0 add <owner/repo>/page-nav#<version>`
 

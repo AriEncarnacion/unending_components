@@ -7,7 +7,6 @@ const keysChanged = (a: Record<string, unknown> = {}, b: Record<string, unknown>
   return [...names].filter((name) => serialize(a[name]) !== serialize(b[name])).sort()
 }
 
-/** What Save would write, in words: tokens, palette and each entry, compared with the files. */
 export function describeChanges(before: Working | null, after: Working): ChangeGroup[] {
   const groups: ChangeGroup[] = []
   if (!before) groups.push({ area: "New system", items: [`Creates design-systems/${after.system.id}/`] })

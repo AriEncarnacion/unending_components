@@ -1,16 +1,3 @@
-// Builds a design system into its own GitHub repo, from the files the tuner
-// saves. Each entry is baked: its useEntryTuning(...) call becomes a plain
-// object with the system's values, so an app receives an ordinary component
-// with no tuning layer.
-//
-//   (no flags)   checks the entries' knobs and every local design system
-//   --system <id> --address <owner/repo> --version <n>
-//                builds design-systems/<id>/ (a clone of the system's repo)
-//                into a shadcn GitHub registry: registry.json at the root
-//                plus the baked files. Same-repo dependencies are pinned to
-//                owner/repo/<item>#v<n>, so a version only pulls its own items.
-//
-// Run with: node --experimental-strip-types scripts/build-systems.ts [...]
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import path from "node:path"
 import ts from "typescript"
@@ -32,10 +19,8 @@ const version = argument("--version")
 const registry = JSON.parse(readFileSync(path.join(root, "registry.json"), "utf8"))
 const ADDRESS = new URL(registry.homepage).pathname.slice(1)
 
-/** Built files and folders in a system repo. Everything else (system.json, entries/, .git) is source. */
 const BUILT = ["registry.json", "registry", "docs", "eslint", "README.md"]
 
-// Registry items are loose JSON; the shadcn build validates them.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Item = Record<string, any>
 const items: Item[] = registry.items
@@ -44,8 +29,6 @@ const stock = { light: themeItem.cssVars.light as Record<string, string>, dark: 
 const entryItems = items.filter((item) => item.meta?.entry)
 
 const problems: string[] = []
-
-// ── Knobs and the defaults written in each entry ───────────────────────────
 
 async function loadKnobs() {
   const knobs: Record<string, Knob[]> = {}
@@ -62,7 +45,6 @@ async function loadKnobs() {
 
 type Call = { start: number; end: number; entry: string; defaults: Record<string, { text: string; value: unknown }>; order: string[] }
 
-/** Every useEntryTuning("name", { ... }) call in a source file. */
 function findCalls(source: string, file: string): Call[] {
   const sf = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
   const calls: Call[] = []
@@ -101,7 +83,6 @@ function findCalls(source: string, file: string): Call[] {
   return calls
 }
 
-/** The source with each useEntryTuning call replaced by a plain object, and its import removed. */
 function bake(source: string, file: string, values: Record<string, unknown>) {
   let out = source
   for (const call of findCalls(source, file).reverse()) {
@@ -120,7 +101,6 @@ function bake(source: string, file: string, values: Record<string, unknown>) {
   return out
 }
 
-/** Checks that each entry's knobs.ts matches the defaults written in its code. */
 function checkKnobDefaults(knobs: Record<string, Knob[]>) {
   for (const item of entryItems) {
     const declared = knobs[item.name] ?? []
@@ -142,8 +122,6 @@ function checkKnobDefaults(knobs: Record<string, Knob[]>) {
       if (!seen.has(knob.key)) problems.push(`${item.name}: knob "${knob.key}" is declared but useEntryTuning never uses it`)
   }
 }
-
-// ── Generated items ─────────────────────────────────────────────────────────
 
 const roles = ["sans", "heading", "mono"] as const
 
@@ -171,7 +149,6 @@ function fontItems(system: SystemFile | null) {
   })
 }
 
-/** Scales that ship: every visible one, plus any hidden one something refers to. */
 function shippedPalette(working: Working) {
   const referenced = new Set<string>()
   const scan = (values: Record<string, string>) =>
@@ -272,9 +249,6 @@ function designRules(working: Working | null) {
   return lines.join("\n")
 }
 
-// ── Building one system repo ────────────────────────────────────────────────
-
-/** A same-repo dependency, pinned to this version. */
 const pinned = (repo: string, n: string, item: string) => `${repo}/${item}#v${n}`
 
 function buildRepo(working: Working, dir: string, repo: string, n: string) {
@@ -331,8 +305,6 @@ function buildRepo(working: Working, dir: string, repo: string, n: string) {
     out.push(built)
   }
 
-  // The shadcn CLI writes CSS values into consumers' stylesheets as-is, so no
-  // value may be able to close or open a rule.
   for (const item of out)
     for (const [where, value] of cssLeaves({ cssVars: item.cssVars, css: item.css }))
       if (/[;{}]/.test(value)) problems.push(`${item.name}: CSS value at ${where} contains ; { or }, which would break out of its rule.`)
@@ -378,7 +350,6 @@ function readme(working: Working, repo: string, n: string, items: Item[]) {
   ].join("\n")
 }
 
-/** Every string value in a nested CSS object, with its path. */
 function cssLeaves(value: unknown, where = ""): [string, string][] {
   if (typeof value === "string") return [[where, value]]
   if (!value || typeof value !== "object") return []
@@ -390,8 +361,6 @@ function writeFile(base: string, relative: string, content: string) {
   mkdirSync(path.dirname(file), { recursive: true })
   writeFileSync(file, content)
 }
-
-// ── Main ────────────────────────────────────────────────────────────────────
 
 const knobs = await loadKnobs()
 checkKnobDefaults(knobs)

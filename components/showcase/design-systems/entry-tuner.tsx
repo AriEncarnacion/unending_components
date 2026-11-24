@@ -201,7 +201,6 @@ function ScopedShape({ entry }: { entry: string }) {
   )
 }
 
-/** Picks a palette step or another token: the only colours an entry may use. */
 function RefPicker({
   label,
   value,
@@ -391,7 +390,6 @@ function ProposalBanner({ entry }: { entry: string }) {
   )
 }
 
-/** Tunes one entry for the active design system: its knobs, scoped shape and motion, and scoped colours. */
 export function EntryTuner({ name, className }: { name: string; className?: string }) {
   const { ds, tuning, change } = useEntry(name)
   const knobs = entryKnobs[name] ?? []

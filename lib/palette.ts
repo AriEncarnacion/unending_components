@@ -1,13 +1,8 @@
-// Palette maths for the /palette page: OKLCH <-> sRGB without a canvas, gamut
-// checks, contrast (WCAG 2 and APCA), colour-vision simulation and 12-step
-// scale generation. Pure functions; safe on the server.
-
 export type Oklch = { l: number; c: number; h: number }
 type Vec3 = [number, number, number]
 
 export const STEPS = 12
 
-/** Radix-style jobs for each step, used as column hints and in the usage preview. */
 export const stepRoles = [
   "App background",
   "Subtle background",
@@ -23,8 +18,6 @@ export const stepRoles = [
   "Text, high contrast",
 ] as const
 
-// ── Conversions ─────────────────────────────────────────────────────────────
-
 const toLinear = (c: number) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4)
 const toGamma = (c: number) => (c <= 0.0031308 ? c * 12.92 : 1.055 * c ** (1 / 2.4) - 0.055)
 
@@ -33,7 +26,6 @@ export function oklchToOklab({ l, c, h }: Oklch): Vec3 {
   return [l, c * Math.cos(rad), c * Math.sin(rad)]
 }
 
-/** OKLCH to linear sRGB, unclamped (values outside 0–1 are out of gamut). */
 export function oklchToLinear(color: Oklch): Vec3 {
   const [L, a, b] = oklchToOklab(color)
   const l = (L + 0.3963377774 * a + 0.2158037573 * b) ** 3
@@ -72,7 +64,6 @@ function linearToHex(rgb: Vec3) {
   return `#${rgb.map((v) => Math.round(clamp01(toGamma(clamp01(v))) * 255).toString(16).padStart(2, "0")).join("")}`
 }
 
-/** Hex for the colour, clipped into sRGB. */
 export function toHex(color: Oklch) {
   return linearToHex(oklchToLinear(color))
 }
@@ -83,7 +74,6 @@ export function toCss({ l, c, h }: Oklch) {
   return `oklch(${round(l, 3)} ${round(c, 3)} ${round(h, 2)})`
 }
 
-/** Reads "oklch(0.7 0.1 250)" (alpha ignored), "#hex", or returns null. */
 export function parseColor(value: string): Oklch | null {
   const match = value
     .trim()
@@ -94,8 +84,6 @@ export function parseColor(value: string): Oklch | null {
   }
   return parseHex(value)
 }
-
-// ── Gamut ───────────────────────────────────────────────────────────────────
 
 const EPS = 0.0005
 
@@ -118,7 +106,6 @@ export function gamutOf(color: Oklch): Gamut {
   return inSrgb(color) ? "srgb" : inP3(color) ? "p3" : "out"
 }
 
-/** Largest chroma at this lightness and hue that stays inside the gamut. */
 export function maxChroma(l: number, h: number, gamut: "srgb" | "p3" = "srgb") {
   const test = gamut === "srgb" ? inSrgb : inP3
   let lo = 0
@@ -131,22 +118,16 @@ export function maxChroma(l: number, h: number, gamut: "srgb" | "p3" = "srgb") {
   return lo
 }
 
-/** Lowers chroma (keeping lightness and hue) until the colour fits the gamut. */
 export function clampToGamut(color: Oklch, gamut: "srgb" | "p3" = "srgb"): Oklch {
   const test = gamut === "srgb" ? inSrgb : inP3
   return test(color) ? color : { ...color, c: maxChroma(color.l, color.h, gamut) }
 }
 
-// ── Difference ──────────────────────────────────────────────────────────────
-
-/** Euclidean distance in OKLab, ×100 so 1 is roughly a just-noticeable step. */
 export function deltaE(a: Oklch, b: Oklch) {
   const [l1, a1, b1] = oklchToOklab(a)
   const [l2, a2, b2] = oklchToOklab(b)
   return Math.hypot(l1 - l2, a1 - a2, b1 - b2) * 100
 }
-
-// ── Contrast ────────────────────────────────────────────────────────────────
 
 function clippedLinear(color: Oklch): Vec3 {
   return oklchToLinear(color).map(clamp01) as Vec3
@@ -157,19 +138,16 @@ export function relativeLuminance(color: Oklch) {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b
 }
 
-/** WCAG 2 contrast ratio, 1–21. */
 export function wcag(a: Oklch, b: Oklch) {
   const [hi, lo] = [relativeLuminance(a), relativeLuminance(b)].sort((x, y) => y - x)
   return (hi + 0.05) / (lo + 0.05)
 }
 
 function apcaY(color: Oklch) {
-  // APCA uses a simple 2.4 exponent on the encoded channels.
   const [r, g, b] = clippedLinear(color).map((v) => toGamma(v) ** 2.4)
   return 0.2126729 * r + 0.7151522 * g + 0.072175 * b
 }
 
-/** APCA lightness contrast (Lc) of text on a background; negative for light text on dark. */
 export function apca(text: Oklch, background: Oklch) {
   const clampY = (y: number) => (y > 0.022 ? y : y + (0.022 - y) ** 1.414)
   const t = clampY(apcaY(text))
@@ -186,12 +164,9 @@ export function apca(text: Oklch, background: Oklch) {
 export const WHITE: Oklch = { l: 1, c: 0, h: 0 }
 export const BLACK: Oklch = { l: 0, c: 0, h: 0 }
 
-/** White or near-black, whichever reads better on the colour. */
 export function inkOn(color: Oklch) {
   return Math.abs(apca(WHITE, color)) >= Math.abs(apca(BLACK, color)) ? "#ffffff" : "#0a0a0a"
 }
-
-// ── Colour-vision simulation (Machado et al. 2009, full severity, linear RGB) ─
 
 export type Vision = "normal" | "grayscale" | "protanopia" | "deuteranopia" | "tritanopia"
 
@@ -201,7 +176,6 @@ const visionMatrices: Record<"protanopia" | "deuteranopia" | "tritanopia", numbe
   tritanopia: [1.255528, -0.076749, -0.178779, -0.078411, 0.930809, 0.147602, 0.004733, 0.691367, 0.3039],
 }
 
-/** The CSS colour to paint for a swatch under the chosen vision mode. */
 export function paint(color: Oklch, vision: Vision = "normal") {
   if (vision === "normal") return toCss(color)
   if (vision === "grayscale") return toCss({ l: color.l, c: 0, h: 0 })
@@ -210,28 +184,19 @@ export function paint(color: Oklch, vision: Vision = "normal") {
   return linearToHex([m[0] * r + m[1] * g + m[2] * b, m[3] * r + m[4] * g + m[5] * b, m[6] * r + m[7] * g + m[8] * b])
 }
 
-/** The colour as it would be seen, for contrast and difference maths under a vision mode. */
 export function perceived(color: Oklch, vision: Vision): Oklch {
   if (vision === "normal") return color
   if (vision === "grayscale") return { l: color.l, c: 0, h: 0 }
   return parseHex(paint(color, vision)) ?? color
 }
 
-// ── Scales ──────────────────────────────────────────────────────────────────
-
 export type Generator = {
-  /** The key colour the scale is built around. */
   key: Oklch
-  /** 0-based step the key colour sits on exactly. */
   index: number
-  /** Lightness of step 1 and step 12. */
   lightest: number
   darkest: number
-  /** Multiplies the reference chroma profile. 1 keeps the key's own chroma. */
   chroma: number
-  /** Hue drift in degrees from step 1 to step 12, pivoting on the key. */
   hueShift: number
-  /** Gamut the generated steps are pulled into. */
   gamut: "srgb" | "p3"
 }
 
@@ -239,11 +204,9 @@ export type Scale = {
   id: string
   name: string
   steps: Oklch[]
-  /** The steps the scale started with, for comparing and resetting. */
   original: Oklch[]
   hidden: boolean
   generator?: Generator
-  /** Neutral or status scale (danger, warning, success, info) rather than a brand colour. */
   semantic?: boolean
 }
 
@@ -255,7 +218,6 @@ export type KeyColor = {
   hidden: boolean
 }
 
-/** Mean lightness and normalised chroma per step across the given scales. */
 export function referenceCurves(scales: Pick<Scale, "steps">[]) {
   const lightness = Array.from({ length: STEPS }, (_, i) =>
     scales.length ? scales.reduce((sum, s) => sum + s.steps[i].l, 0) / scales.length : 1 - (i / (STEPS - 1)) * 0.82
@@ -272,7 +234,6 @@ export function referenceCurves(scales: Pick<Scale, "steps">[]) {
   return { lightness, chroma }
 }
 
-/** Step whose reference lightness is nearest the colour's. */
 export function nearestIndex(color: Oklch, lightness: number[]) {
   let best = 0
   lightness.forEach((l, i) => {
@@ -286,10 +247,7 @@ export function generate(generator: Generator, reference: { lightness: number[];
   const ref = reference.lightness
   const [refTop, refBottom] = [ref[0], ref[STEPS - 1]]
   const span = refTop - refBottom || 1
-  // Reference curve shape, stretched to the scale's own ends.
   const base = ref.map((l) => darkest + ((l - refBottom) / span) * (lightest - darkest))
-  // Bend it so the key step lands exactly on the key's lightness, fading to
-  // nothing at both ends so step 1 and step 12 stay put.
   const offset = key.l - base[index]
   const lightness = base.map((l, i) => {
     if (i === index) return key.l
@@ -307,7 +265,6 @@ export function generate(generator: Generator, reference: { lightness: number[];
   })
 }
 
-/** Light moving-average over the interior steps of one channel. */
 export function smooth(steps: Oklch[], channel: "l" | "c" | "h") {
   return steps.map((step, i) => {
     if (i === 0 || i === steps.length - 1) return step
@@ -326,8 +283,6 @@ export function slug(name: string) {
       .replace(/[\s_]+/g, "-") || "scale"
   )
 }
-
-// ── Seeds ───────────────────────────────────────────────────────────────────
 
 const hexes = (list: string) => list.split(/\s+/).map((hex) => parseHex(hex)!)
 
@@ -361,7 +316,6 @@ const handMade: Scale[] = [
 
 const reference = referenceCurves(handMade)
 
-/** A generated scale around a key colour, sitting on the reference curves. */
 export function scaleFromKey(
   id: string,
   name: string,
@@ -384,13 +338,6 @@ export function scaleFromKey(
   return { id, name, steps, original: steps, hidden: false, generator, ...(semantic ? { semantic } : {}) }
 }
 
-/**
- * Neutral and status scales, tuned to sit with the jade palette: a neutral
- * tinted toward jade, and status hues kept recognisable (red, amber, green,
- * blue) but with chroma held near the palette's muted range. Danger is
- * cinnabar, the split complement of jade; warning leans toward vein gold;
- * info moves aqua toward blue so it can't be mistaken for success.
- */
 export const semanticScales: Scale[] = [
   scaleFromKey("neutral", "Neutral", { l: 0.55, c: 0.014, h: 150 }, reference, {
     lightest: 0.985,

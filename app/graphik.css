@@ -1,9 +1,3 @@
-/*
- * Graphik, a licensed commercial font, offered as a font
- * option on /system. The files live in public/fonts/graphik/, which is git-ignored,
- * so it stays on this machine: never commit it or ship it in the registry. Without
- * the files these rules 404 and the option falls back to the system sans.
- */
 @font-face {
   font-family: "Graphik";
   src: url("/fonts/graphik/Graphik-100-Thin.otf") format("opentype");

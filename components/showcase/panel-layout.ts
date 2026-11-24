@@ -2,7 +2,6 @@
 
 import * as React from "react"
 
-/** localStorage for remembered panel sizes, or nothing when it's blocked (private windows, previews). */
 export const panelStorage = {
   getItem(key: string) {
     try {
@@ -20,11 +19,6 @@ export const panelStorage = {
 
 const subscribe = () => () => {}
 
-/**
- * False on the server and during hydration, true after. Resizable panel groups
- * restore their sizes from localStorage, which the server can't see, so they
- * render only in the browser to avoid a hydration mismatch.
- */
 export function useHydrated() {
   return React.useSyncExternalStore(
     subscribe,

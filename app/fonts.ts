@@ -13,14 +13,10 @@ import {
 
 import type { FontOption } from "@/components/showcase/token-overrides"
 
-// The theme's fonts: DM Sans for body text, Manrope for headings, Geist Mono
-// for code and data. Keep in step with the font-* items in registry.json.
 export const dmSans = DM_Sans({ subsets: ["latin"], variable: "--font-sans" })
 export const manrope = Manrope({ subsets: ["latin"], variable: "--font-heading" })
 export const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-mono" })
 
-// Alternatives for trying on the design system page. Not preloaded, so each
-// downloads only when picked.
 const geist = Geist({ subsets: ["latin"], variable: "--font-option-geist", preload: false })
 const inter = Inter({ subsets: ["latin"], variable: "--font-option-inter", preload: false })
 const plexSans = IBM_Plex_Sans({ subsets: ["latin"], weight: ["400", "500", "600", "700"], variable: "--font-option-plex-sans", preload: false })
@@ -50,12 +46,10 @@ const proportional: FontOption[] = [
   { id: "plex-sans", label: "IBM Plex Sans", family: plexSans.style.fontFamily },
   { id: "archivo", label: "Archivo", family: archivo.style.fontFamily },
   { id: "space-grotesk", label: "Space Grotesk", family: spaceGrotesk.style.fontFamily },
-  // Local only: licensed, loaded by @font-face in app/graphik.css from git-ignored files.
   { id: "graphik", label: "Graphik (local)", family: '"Graphik", ui-sans-serif, system-ui, sans-serif' },
   { id: "system", label: "System UI", family: "ui-sans-serif, system-ui, sans-serif" },
 ]
 
-// The first option in each list is the theme's own font.
 const first = (id: string) => [
   ...proportional.filter((font) => font.id === id),
   ...proportional.filter((font) => font.id !== id),

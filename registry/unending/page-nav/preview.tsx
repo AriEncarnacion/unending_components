@@ -62,7 +62,6 @@ const sections: PageNavSection[] = [
   },
 ]
 
-/** A whole app frame, so the nav can be tried at full size inside an iframe. */
 export function PageNavPreview({
   collapsed = false,
   initialPath = "/rotations/primary",

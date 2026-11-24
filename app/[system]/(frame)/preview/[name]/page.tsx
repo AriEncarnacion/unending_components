@@ -2,8 +2,6 @@ import { notFound } from "next/navigation"
 
 import { PageNavPreview } from "@/registry/unending/page-nav/preview"
 
-// Full-page frames for entries that own the page (navigation, app shells).
-// The catalog embeds these in iframes so they don't fight the showcase layout.
 export default async function PreviewPage({
   params,
   searchParams,

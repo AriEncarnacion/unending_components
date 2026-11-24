@@ -6,14 +6,6 @@ import { getEntry } from "@/lib/catalog"
 
 export const metadata: Metadata = { robots: { index: false } }
 
-/**
- * Just an entry's demo, with no showcase around it, for checking sizes. The
- * Sizes view loads it in a frame sized to a device. `?w=<px>` puts the demo in
- * a container that wide, to test a narrow container in a wide window.
- *
- * Dynamic on purpose: it reads `searchParams`, a request-time API, so it has no
- * `generateStaticParams`.
- */
 export default async function FramePage({
   params,
   searchParams,
@@ -27,7 +19,6 @@ export default async function FramePage({
 
   return (
     <div className="min-h-svh bg-background p-4">
-      {/* A frame shows the component alone: no dev overlay over it. */}
       <style>{"nextjs-portal{display:none!important}"}</style>
       <div
         data-frame-root=""
