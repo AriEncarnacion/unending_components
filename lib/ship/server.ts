@@ -6,6 +6,7 @@ import { promisify } from "node:util"
 
 import { systemsDir } from "../design-systems/load.ts"
 import { idPattern } from "../design-systems/schema.ts"
+import { capturePreview } from "./preview.ts"
 
 const run = promisify(execFile)
 const root = process.cwd()
@@ -242,8 +243,9 @@ async function upToDate(dir: string) {
 
 export type NewRepo = { owner: string; name: string; visibility: "private" | "public" }
 export type ShipOptions = { create?: NewRepo; review?: boolean }
+type ShipRequest = ShipOptions & { origin: string }
 
-export function startShip(systemId: string, systemName: string, options: ShipOptions) {
+export function startShip(systemId: string, systemName: string, options: ShipRequest) {
   const job = begin(systemId, systemName, "ship")
   const controller = new AbortController()
   cancels.set(systemId, controller)
@@ -291,7 +293,7 @@ async function build(dir: string, id: string, repo: string, version: number, sig
   return null
 }
 
-async function ship(job: ShipJob, options: ShipOptions, signal: AbortSignal) {
+async function ship(job: ShipJob, options: ShipRequest, signal: AbortSignal) {
   const check = await preflight()
   throwIfCancelled(signal)
   if (!check.ok) throw new Error(check.problems.join(" "))
@@ -333,6 +335,11 @@ async function ship(job: ShipJob, options: ShipOptions, signal: AbortSignal) {
   step(job, `Building v${version}`)
   const problem = await build(dir, id, repo!, version, signal)
   if (problem) return finish(job, "blocked", { step: "The build found problems", findings: problem, blockedBy: "build" })
+  step(job, `Capturing a preview of v${version}`)
+  await capturePreview({ base: options.origin, systemId: id, dir, signal }).catch((error: Error) => {
+    throwIfCancelled(signal)
+    throw new Error(`Couldn't capture the preview: ${error.message.split("\n")[0]}`)
+  })
   await git(dir, ["add", "--all"])
 
   if (options.review) {
