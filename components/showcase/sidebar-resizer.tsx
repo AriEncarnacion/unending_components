@@ -10,23 +10,43 @@ const MIN = 200
 const MAX = 480
 const STEP = 16
 
+const widthListeners = new Set<() => void>()
+
+function subscribeToSavedWidth(listener: () => void) {
+  const onStorage = (event: StorageEvent) => {
+    if (event.key === null || event.key === STORAGE_KEY) listener()
+  }
+  widthListeners.add(listener)
+  window.addEventListener("storage", onStorage)
+  return () => {
+    widthListeners.delete(listener)
+    window.removeEventListener("storage", onStorage)
+  }
+}
+
+function savedWidth(): number | null {
+  try {
+    const saved = Number(localStorage.getItem(STORAGE_KEY))
+    return saved >= MIN && saved <= MAX ? saved : null
+  } catch {
+    return null
+  }
+}
+
 export function useSidebarWidth() {
-  const [width, setWidth] = React.useState<number | null>(null)
-  React.useEffect(() => {
-    try {
-      const saved = Number(localStorage.getItem(STORAGE_KEY))
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time restore from storage
-      if (saved >= MIN && saved <= MAX) setWidth(saved)
-    } catch {}
-  }, [])
+  const saved = React.useSyncExternalStore(subscribeToSavedWidth, savedWidth, () => null)
+  const [unsaved, setUnsaved] = React.useState<number | null | undefined>(undefined)
   const save = React.useCallback((next: number | null) => {
-    setWidth(next)
     try {
       if (next === null) localStorage.removeItem(STORAGE_KEY)
       else localStorage.setItem(STORAGE_KEY, String(next))
-    } catch {}
+      setUnsaved(undefined)
+    } catch {
+      setUnsaved(next)
+    }
+    for (const listener of widthListeners) listener()
   }, [])
-  return [width, setWidth, save] as const
+  return [unsaved === undefined ? saved : unsaved, setUnsaved, save] as const
 }
 
 const clamp = (value: number) => Math.round(Math.min(MAX, Math.max(MIN, value)))

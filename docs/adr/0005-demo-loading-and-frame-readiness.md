@@ -7,9 +7,9 @@
 
 ### The demo map lives in a client module
 
-`components/showcase/demo-view.tsx` maps each entry to `import()` of its `demo.tsx`. It's a client module on purpose. If a server component imported it, every `import()` would become a client reference, and Next would list all of their chunks in the page's HTML. Every page would then download every demo, Agent Chat's markdown and highlighting included.
+`components/showcase/demo-loaders.ts` maps each entry to `import()` of its `demo.tsx`, and `demo-view.tsx` wraps them. Both are client modules on purpose. If a server component imported it, every `import()` would become a client reference, and Next would list all of their chunks in the page's HTML. Every page would then download every demo, Agent Chat's markdown and highlighting included.
 
-The map must list every entry in `registry.json`. Nothing checks that yet (#19).
+`npm run registry:index` generates the map from `registry.json`, and `npm run registry:check` fails when it is stale or an entry has no `demo.tsx`.
 
 ### One lazy component per entry
 

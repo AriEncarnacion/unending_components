@@ -3,6 +3,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs"
 const root = new URL("../", import.meta.url)
 const registry = JSON.parse(readFileSync(new URL("registry.json", root), "utf8"))
 const out = new URL("plugin/skills/unending-catalog/references/catalog.md", root)
+const demoLoadersOut = new URL("components/showcase/demo-loaders.ts", root)
 
 function section(markdown, heading) {
   const match = markdown.match(new RegExp(`## ${heading}\\n([\\s\\S]*?)(?=\\n## |$)`))
@@ -47,14 +48,36 @@ for (const item of entries) {
 
 const content = lines.filter((line, index, all) => !(line === "" && all[index - 1] === "")).join("\n")
 
+const missingDemos = entries.filter((item) => !existsSync(new URL(`registry/unending/${item.name}/demo.tsx`, root)))
+if (missingDemos.length) {
+  console.error(`Every entry needs a demo.tsx. Missing: ${missingDemos.map((item) => item.name).join(", ")}.`)
+  process.exit(1)
+}
+
+const demoLoaders = [
+  '"use client"',
+  "",
+  'import type * as React from "react"',
+  "",
+  "export const demoLoaders: Record<string, () => Promise<{ default: React.ComponentType }>> = {",
+  ...entries.map((item) => `  "${item.name}": () => import("@/registry/unending/${item.name}/demo"),`),
+  "}",
+  "",
+].join("\n")
+
+const outputs = [
+  { url: out, content, what: "Catalog index" },
+  { url: demoLoadersOut, content: demoLoaders, what: "Demo map" },
+]
+
 if (process.argv.includes("--check")) {
-  const current = existsSync(out) ? readFileSync(out, "utf8") : ""
-  if (current !== content) {
-    console.error("Catalog index is stale. Run npm run registry:index.")
+  const stale = outputs.filter((output) => (existsSync(output.url) ? readFileSync(output.url, "utf8") : "") !== output.content)
+  if (stale.length) {
+    console.error(`${stale.map((output) => output.what).join(" and ")} out of date with registry.json. Run npm run registry:index.`)
     process.exit(1)
   }
-  console.log("Catalog index in sync.")
+  console.log("Catalog index and demo map in sync.")
 } else {
-  writeFileSync(out, content)
-  console.log(`Wrote ${entries.length} entries to ${out.pathname}`)
+  for (const output of outputs) writeFileSync(output.url, output.content)
+  console.log(`Wrote ${entries.length} entries to ${out.pathname} and ${demoLoadersOut.pathname}`)
 }

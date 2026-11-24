@@ -34,4 +34,4 @@ ESLint's bulk suppressions grandfathered the comments left after the first pass,
 
 - The `/delete-comment` skill (`.claude/skills/delete-comment/`) repeats this triage on whatever comments are left.
 - Comments in CSS files aren't linted. The three that existed have been moved into ADRs 0004 and 0009.
-- Excuses found in the first pass: #18, #19, #20, #21, #22, #23.
+- Excuses found in the first pass: #18, #19, #20, #21, #22, #23, all fixed in the PR that followed.

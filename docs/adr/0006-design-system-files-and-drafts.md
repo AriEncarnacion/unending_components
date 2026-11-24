@@ -35,7 +35,7 @@ A design system is a package of differences from stock (CLAUDE.md). On disk it's
 - A draft is a system's working copy in localStorage. `workingFor` returns the draft if there is one, else the saved files. `active` is `null` on Stock.
 - `putWorking` stores a working copy as the draft, or clears the draft once it matches the files again.
 - `savedHash` is the hash of the committed files when the draft began (`""` for a system never saved), so a draft can tell when the files changed under it.
-- Drafts are restored after hydration, and the provider follows `storage` events so edits in the preview iframes and other tabs show up. A system named in the URL can be an unsaved draft, so it may look missing until drafts restore. How the restore is done is tracked in #21.
+- Drafts live in an external store over `localStorage`, read with `useSyncExternalStore`. Its server snapshot is `null`, so the server render and hydration show no drafts and `restored` is false; the client then reads storage. The store follows `storage` events, so edits in the preview iframes and other tabs show up. If a write to storage fails, the draft stays in memory for this tab. A system named in the URL can be an unsaved draft, so it may look missing until drafts restore. The remembered sidebar width works the same way (`useSidebarWidth`).
 - The palette is part of the draft. Palette edits share the system's undo history.
 
 ### Stock is read-only

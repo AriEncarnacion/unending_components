@@ -1,9 +1,10 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import path from "node:path"
+import { registrySchema, type Registry, type RegistryItem } from "shadcn/schema"
 import ts from "typescript"
 
 import { readCommitted, systemsDir } from "../lib/design-systems/load.ts"
-import { fontById, stockFonts } from "../lib/design-systems/fonts.ts"
+import { fontById, fontItem, fontRoles, stockFonts } from "../lib/design-systems/fonts.ts"
 import { paletteVars, scopedSelectors, scopedVars, toVar } from "../lib/design-systems/resolve.ts"
 import { typeVars } from "../lib/design-systems/type-scale.ts"
 import { parsePaletteRef, validate, type Knob, type SystemFile, type Working } from "../lib/design-systems/schema.ts"
@@ -16,16 +17,18 @@ const argument = (flag: string) => {
 const onlySystem = argument("--system")
 const address = argument("--address")
 const version = argument("--version")
-const registry = JSON.parse(readFileSync(path.join(root, "registry.json"), "utf8"))
+const registry: Registry = JSON.parse(readFileSync(path.join(root, "registry.json"), "utf8"))
+registrySchema.parse(registry)
 const ADDRESS = new URL(registry.homepage).pathname.slice(1)
 
 const BUILT = ["registry.json", "registry", "docs", "eslint", "README.md"]
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type Item = Record<string, any>
+type Item = RegistryItem
 const items: Item[] = registry.items
-const themeItem = items.find((item) => item.name === "theme")!
-const stock = { light: themeItem.cssVars.light as Record<string, string>, dark: themeItem.cssVars.dark as Record<string, string> }
+const themeItem = items.find((item) => item.name === "theme")
+if (!themeItem?.cssVars?.light || !themeItem.cssVars.dark) throw new Error("registry.json needs a theme item with light and dark cssVars")
+const themeVars = { theme: themeItem.cssVars.theme ?? {}, light: themeItem.cssVars.light, dark: themeItem.cssVars.dark }
+const stock = { light: themeVars.light, dark: themeVars.dark }
 const entryItems = items.filter((item) => item.meta?.entry)
 
 const problems: string[] = []
@@ -123,29 +126,10 @@ function checkKnobDefaults(knobs: Record<string, Knob[]>) {
   }
 }
 
-const roles = ["sans", "heading", "mono"] as const
-
-function fontItems(system: SystemFile | null) {
-  return roles.flatMap((role) => {
-    const id = (system?.tokens.theme[`--font-${role}`] as string | undefined) ?? stockFonts[role]
-    const font = fontById(id)
-    if (!font?.item) return []
-    return [
-      {
-        name: `font-${role}`,
-        type: "registry:font",
-        title: `${font.label} (${role === "sans" ? "body" : role === "heading" ? "headings" : "code and data"})`,
-        description: `The design system's ${role === "sans" ? "body and UI" : role === "heading" ? "heading" : "monospace"} font, as --font-${role}.`,
-        font: {
-          family: font.item.family,
-          provider: "google",
-          import: font.item.import,
-          variable: `--font-${role}`,
-          subsets: ["latin"],
-          dependency: font.item.dependency,
-        },
-      },
-    ]
+function fontItems(system: SystemFile) {
+  return fontRoles.flatMap((role) => {
+    const id = (system.tokens.theme[`--font-${role}`] as string | undefined) ?? stockFonts[role]
+    return fontItem(role, id, "The design system's") ?? []
   })
 }
 
@@ -166,14 +150,14 @@ function shippedPalette(working: Working) {
   return paletteVars({ scales: scales.map((s) => ({ ...s, hidden: false })), keys: [] })
 }
 
-function themeFor(working: Working | null) {
-  const system = working?.system ?? null
+function themeFor(working: Working) {
+  const system = working.system
   const mapped = (values: Record<string, string>) =>
     Object.fromEntries(Object.entries(values).map(([token, value]) => [token, toVar(value)]))
-  const theme: Record<string, string> = { ...themeItem.cssVars.theme }
-  const light = { ...stock.light, ...(system ? mapped(system.tokens.light) : {}) }
-  const dark = { ...stock.dark, ...(system ? mapped(system.tokens.dark) : {}) }
-  const t = system?.tokens.theme ?? {}
+  const theme: Record<string, string> = { ...themeVars.theme }
+  const light = { ...stock.light, ...mapped(system.tokens.light) }
+  const dark = { ...stock.dark, ...mapped(system.tokens.dark) }
+  const t = system.tokens.theme
   if (t["--radius"]) light.radius = t["--radius"]
   if (t["--spacing"]) theme.spacing = t["--spacing"]
   for (const [name, value] of Object.entries(typeVars(t))) theme[name.slice(2)] = value
@@ -182,9 +166,9 @@ function themeFor(working: Working | null) {
   if (t["--default-transition-timing-function"])
     theme["default-transition-timing-function"] = t["--default-transition-timing-function"]
 
-  const rootVars: Record<string, string> = working ? shippedPalette(working) : {}
+  const rootVars: Record<string, string> = shippedPalette(working)
   const notes: string[] = []
-  for (const role of roles) {
+  for (const role of fontRoles) {
     const id = (t[`--font-${role}`] as string | undefined) ?? stockFonts[role]
     const font = fontById(id)
     if (font && !font.item) {
@@ -199,10 +183,8 @@ function themeFor(working: Working | null) {
   const item: Item = {
     name: "theme",
     type: "registry:theme",
-    title: system ? `${system.name} theme` : "Unending theme",
-    description: system
-      ? `The ${system.name} design system's tokens, palette and fonts. Every entry depends on it.`
-      : themeItem.description,
+    title: `${system.name} theme`,
+    description: `The ${system.name} design system's tokens, palette and fonts. Every entry depends on it.`,
     registryDependencies: [] as string[],
     cssVars: { theme, light, dark },
   }
@@ -211,10 +193,9 @@ function themeFor(working: Working | null) {
   return item
 }
 
-function designRules(working: Working | null) {
-  const system = working?.system
-  const name = system?.name ?? "Stock shadcn"
-  const palette = working ? Object.keys(shippedPalette(working)) : []
+function designRules(working: Working) {
+  const name = working.system.name
+  const palette = Object.keys(shippedPalette(working))
   const scales = [...new Set(palette.map((v) => v.replace(/^--/, "").replace(/-\d+$/, "")))]
   const lines = [
     `# Design system: ${name}`,
@@ -281,7 +262,7 @@ function buildRepo(working: Working, dir: string, repo: string, n: string) {
 
   for (const item of entryItems) {
     const tuning = working.entries[item.name]
-    const files = (item.files as { path: string; type: string; target?: string }[]).map((file) => {
+    const files = (item.files ?? []).map((file) => {
       const source = readFileSync(path.join(root, file.path), "utf8")
       writeFile(dir, file.path, bake(source, file.path, tuning?.knobs ?? {}))
       return file
@@ -343,7 +324,7 @@ function readme(working: Working, repo: string, n: string, items: Item[]) {
     "",
     "| Entry | Intent |",
     "| --- | --- |",
-    ...entries.map((item) => `| \`${item.name}\` | ${item.meta.intent} |`),
+    ...entries.map((item) => `| \`${item.name}\` | ${item.meta?.intent} |`),
     "",
     "Generated by Ship. Edit the system in the catalog, not here: `system.json` and `entries/` are its source, and everything else is rebuilt on every ship.",
     "",

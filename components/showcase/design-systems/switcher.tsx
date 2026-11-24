@@ -372,7 +372,7 @@ type TraverseEvent = Event & {
   cancelable: boolean
   destination: { url: string; key: string }
 }
-type NavigationApi = EventTarget & { traverseTo: (key: string) => unknown }
+type NavigationApi = EventTarget & { traverseTo: (key: string) => { finished: Promise<unknown> } }
 
 export function BackButton() {
   const ds = useDesignSystems()
@@ -382,7 +382,11 @@ export function BackButton() {
   const active = ds.active
   const dirty = !!ds.systems.find((s) => s.id === ds.activeId)?.dirty
   const neverSaved = active ? !ds.committedFor(active.system.id) : false
-  const guard = React.useRef({ dirty, id: ds.activeId, bypass: false })
+  const guard = React.useRef<{ dirty: boolean; id: string; leavingTo: string | null }>({
+    dirty,
+    id: ds.activeId,
+    leavingTo: null,
+  })
   React.useEffect(() => {
     guard.current.dirty = dirty
     guard.current.id = ds.activeId
@@ -393,13 +397,20 @@ export function BackButton() {
     if (!navigation) return
     const onNavigate = (event: Event) => {
       const e = event as TraverseEvent
-      const { dirty, id, bypass } = guard.current
-      if (bypass || !dirty || !e.cancelable || e.navigationType !== "traverse") return
+      const { dirty, id, leavingTo } = guard.current
+      if (!dirty || !e.cancelable || e.navigationType !== "traverse") return
+      if (e.destination.key === leavingTo) return
       const path = new URL(e.destination.url).pathname
       if (path === `/${id}` || path.startsWith(`/${id}/`)) return
       e.preventDefault()
       const key = e.destination.key
-      setLeave(() => () => navigation.traverseTo(key))
+      setLeave(() => () => {
+        guard.current.leavingTo = key
+        const settled = () => {
+          if (guard.current.leavingTo === key) guard.current.leavingTo = null
+        }
+        navigation.traverseTo(key).finished.then(settled, settled)
+      })
     }
     navigation.addEventListener("navigate", onNavigate)
     return () => navigation.removeEventListener("navigate", onNavigate)
@@ -408,9 +419,7 @@ export function BackButton() {
   const go = () => {
     const next = leave
     setLeave(null)
-    guard.current.bypass = true
     next?.()
-    window.setTimeout(() => (guard.current.bypass = false), 1000)
   }
 
   const save = async () => {

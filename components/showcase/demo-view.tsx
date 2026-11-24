@@ -2,22 +2,11 @@
 
 import * as React from "react"
 
+import { demoLoaders } from "@/components/showcase/demo-loaders"
 import { Skeleton } from "@/components/ui/skeleton"
 
-type DemoModule = { default: React.ComponentType }
-
-const demos: Record<string, () => Promise<DemoModule>> = {
-  "timeline-scrubber": () => import("@/registry/unending/timeline-scrubber/demo"),
-  "agent-chat": () => import("@/registry/unending/agent-chat/demo"),
-  "review-deck": () => import("@/registry/unending/review-deck/demo"),
-  "file-toolbar": () => import("@/registry/unending/file-toolbar/demo"),
-  "inspector-panel": () => import("@/registry/unending/inspector-panel/demo"),
-  "page-nav": () => import("@/registry/unending/page-nav/demo"),
-  "agent-trace": () => import("@/registry/unending/agent-trace/demo"),
-}
-
 const lazyDemos = Object.fromEntries(
-  Object.entries(demos).map(([name, load]) => [name, React.lazy(load)])
+  Object.entries(demoLoaders).map(([name, load]) => [name, React.lazy(load)])
 )
 
 export function DemoView({ name, after }: { name: string; after?: React.ReactNode }) {
