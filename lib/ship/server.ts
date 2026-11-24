@@ -20,12 +20,13 @@ export type ShipJob = {
   systemId: string
   systemName: string
   action: "ship" | "rollback" | "pull"
-  state: "running" | "shipped" | "blocked" | "failed" | "nothing"
+  state: "running" | "shipped" | "blocked" | "failed" | "nothing" | "cancelled"
   step: string
   log: { at: number; text: string }[]
   version?: number
   findings?: string
   blockedBy?: "build" | "review"
+  cancellable?: boolean
   error?: string
   note?: string
   url?: string
@@ -34,12 +35,23 @@ export type ShipJob = {
 }
 
 type Store = { jobs: Map<string, ShipJob>; preflight?: { at: number; value: Promise<Preflight> }; repos: Map<string, { at: number; info: RepoInfo }> }
-const globalStore = globalThis as unknown as { __unendingShipGitHub?: Store }
+const globalStore = globalThis as unknown as { __unendingShipGitHub?: Store; __unendingShipCancels?: Map<string, AbortController> }
 const store: Store = (globalStore.__unendingShipGitHub ??= { jobs: loadJobs(), repos: new Map() })
+const cancels = (globalStore.__unendingShipCancels ??= new Map<string, AbortController>())
+
+class ShipCancelled extends Error {
+  constructor() {
+    super("Cancelled")
+  }
+}
+
+const throwIfCancelled = (signal: AbortSignal) => {
+  if (signal.aborted) throw new ShipCancelled()
+}
 
 function loadJobs() {
   try {
-    const states = ["running", "shipped", "blocked", "failed", "nothing"]
+    const states = ["running", "shipped", "blocked", "failed", "nothing", "cancelled"]
     const saved = (JSON.parse(readFileSync(jobsFile, "utf8")) as ShipJob[]).filter(
       (job) => ["ship", "rollback", "pull"].includes(job.action) && states.includes(job.state)
     )
@@ -233,18 +245,40 @@ export type ShipOptions = { create?: NewRepo; review?: boolean }
 
 export function startShip(systemId: string, systemName: string, options: ShipOptions) {
   const job = begin(systemId, systemName, "ship")
-  void guarded(job, () => ship(job, options))
+  const controller = new AbortController()
+  cancels.set(systemId, controller)
+  job.cancellable = true
+  void guarded(job, async () => {
+    try {
+      await ship(job, options, controller.signal)
+    } catch (error) {
+      if (!(error instanceof ShipCancelled)) throw error
+      await gitOk(dirOf(systemId), ["reset", "--quiet"])
+      finish(job, "cancelled", { step: "Cancelled", cancellable: false })
+    }
+  }).finally(() => cancels.delete(systemId))
   return job
 }
 
-async function build(dir: string, id: string, repo: string, version: number) {
+export function cancelShip(systemId: string) {
+  const job = store.jobs.get(systemId)
+  const controller = cancels.get(systemId)
+  if (!job || job.state !== "running" || !job.cancellable || !controller) throw new Error("This ship can't be cancelled now.")
+  controller.abort()
+  job.cancellable = false
+  step(job, "Cancelling")
+  return job
+}
+
+async function build(dir: string, id: string, repo: string, version: number, signal: AbortSignal) {
   try {
     await run(
       "node",
       ["--experimental-strip-types", "--no-warnings", "scripts/build-systems.ts", "--system", id, "--address", repo, "--version", String(version)],
-      { cwd: root, timeout: 300_000, maxBuffer: 20 * 1024 * 1024 }
+      { cwd: root, timeout: 300_000, maxBuffer: 20 * 1024 * 1024, signal }
     )
   } catch (error) {
+    throwIfCancelled(signal)
     const e = error as { stderr?: string; stdout?: string }
     return (e.stderr || e.stdout || "The build failed.").trim().slice(0, 6000)
   }
@@ -257,8 +291,9 @@ async function build(dir: string, id: string, repo: string, version: number) {
   return null
 }
 
-async function ship(job: ShipJob, options: ShipOptions) {
+async function ship(job: ShipJob, options: ShipOptions, signal: AbortSignal) {
   const check = await preflight()
+  throwIfCancelled(signal)
   if (!check.ok) throw new Error(check.problems.join(" "))
   const id = job.systemId
   const dir = dirOf(id)
@@ -282,12 +317,13 @@ async function ship(job: ShipJob, options: ShipOptions) {
   } else {
     step(job, "Checking the repo for newer changes")
     await upToDate(dir)
+    throwIfCancelled(signal)
   }
 
   const latest = creating ? 0 : await latestTag(dir)
   if (latest) {
     step(job, `Checking for changes since v${latest}`)
-    const problem = await build(dir, id, repo!, latest)
+    const problem = await build(dir, id, repo!, latest, signal)
     if (problem) return finish(job, "blocked", { step: "The build found problems", findings: problem, blockedBy: "build" })
     await git(dir, ["add", "--all"])
     if ((await gitOk(dir, ["diff", "--cached", "--quiet"])).ok)
@@ -295,13 +331,13 @@ async function ship(job: ShipJob, options: ShipOptions) {
   }
   const version = latest + 1
   step(job, `Building v${version}`)
-  const problem = await build(dir, id, repo!, version)
+  const problem = await build(dir, id, repo!, version, signal)
   if (problem) return finish(job, "blocked", { step: "The build found problems", findings: problem, blockedBy: "build" })
   await git(dir, ["add", "--all"])
 
   if (options.review) {
     step(job, "Claude is reviewing what changed")
-    const verdict = await review(job, await git(dir, ["diff", "--cached", "--no-color"]))
+    const verdict = await review(job, await git(dir, ["diff", "--cached", "--no-color"]), signal)
     if (verdict.block) {
       await git(dir, ["reset", "--quiet"])
       return finish(job, "blocked", { step: "The review asked for changes", findings: verdict.text, blockedBy: "review" })
@@ -313,6 +349,8 @@ async function ship(job: ShipJob, options: ShipOptions) {
     (r) => r.stdout.trim(),
     () => "unknown"
   )
+  throwIfCancelled(signal)
+  job.cancellable = false
   step(job, `Committing v${version}`)
   await git(dir, ["commit", "--quiet", "-m", `Ship ${job.systemName} v${version}`, "-m", `Built from the Unending catalog at ${catalogCommit}.`])
   await git(dir, ["tag", "-a", `v${version}`, "-m", `${job.systemName} v${version}`])
@@ -345,7 +383,7 @@ async function ship(job: ShipJob, options: ShipOptions) {
 
 const stockShadcnPackages = ["cn", "@base-ui/react", "@shadcn/react", "class-variance-authority", "lucide-react", "tw-animate-css", "shadcn"]
 
-async function review(job: ShipJob, diff: string): Promise<{ block: boolean; text: string }> {
+async function review(job: ShipJob, diff: string, signal: AbortSignal): Promise<{ block: boolean; text: string }> {
   const instructions = [
     `You review a design-system registry about to be published as "${job.systemName}". Consumers install these shadcn registry items with the shadcn CLI, so their code and CSS run in other people's apps.`,
     "The user message is a diff of the repo against its last published version (or every file, if this is the first).",
@@ -374,7 +412,7 @@ async function review(job: ShipJob, diff: string): Promise<{ block: boolean; tex
   mkdirSync(cwd, { recursive: true })
   try {
     const { stdout } = await new Promise<{ stdout: string }>((resolve, reject) => {
-      const child = execFile("claude", args, { cwd, timeout: 600_000, maxBuffer: 10 * 1024 * 1024 }, (error, out) =>
+      const child = execFile("claude", args, { cwd, timeout: 600_000, maxBuffer: 10 * 1024 * 1024, signal }, (error, out) =>
         error ? reject(error) : resolve({ stdout: out })
       )
       child.stdin?.end(diff.slice(0, 400_000))
@@ -382,6 +420,7 @@ async function review(job: ShipJob, diff: string): Promise<{ block: boolean; tex
     const text = String((JSON.parse(stdout) as { result?: string }).result ?? "").trim()
     return { block: !/^VERDICT:\s*PASS/i.test(text), text: text.replace(/^VERDICT:\s*\w+\s*/i, "").trim() || "No findings." }
   } catch (error) {
+    throwIfCancelled(signal)
     return { block: true, text: `The review couldn't run: ${(error as Error).message.split("\n")[0]}. Ship without the review, or try again.` }
   }
 }

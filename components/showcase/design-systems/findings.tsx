@@ -8,46 +8,23 @@ import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 
+const block = "mt-[2em] first:mt-0"
+const heading = `${block} font-semibold`
+const list = `${block} flex flex-col gap-[0.6em] pl-[1.5em] [h3+&]:mt-[0.75em] [h4+&]:mt-[0.75em] [li>&]:mt-[0.6em]`
+
 const markdownComponents: Components = {
-  h1: ({ children }) => (
-    <h3 className="mt-3 text-sm font-semibold first:mt-0">{children}</h3>
-  ),
-  h2: ({ children }) => (
-    <h3 className="mt-3 text-sm font-semibold first:mt-0">{children}</h3>
-  ),
-  h3: ({ children }) => (
-    <h4 className="mt-3 text-sm font-semibold first:mt-0">{children}</h4>
-  ),
-  h4: ({ children }) => (
-    <h4 className="mt-3 font-semibold first:mt-0">{children}</h4>
-  ),
-  p: ({ children }) => (
-    <p className="mt-2 leading-relaxed text-pretty first:mt-0">{children}</p>
-  ),
-  ul: ({ children }) => (
-    <ul className="mt-1.5 flex list-disc flex-col gap-1.5 pl-4 first:mt-0">
-      {children}
-    </ul>
-  ),
-  ol: ({ children }) => (
-    <ol className="mt-1.5 flex list-decimal flex-col gap-1.5 pl-4 first:mt-0">
-      {children}
-    </ol>
-  ),
-  li: ({ children }) => (
-    <li className="leading-relaxed text-pretty">{children}</li>
-  ),
-  strong: ({ children }) => (
-    <strong className="font-semibold text-foreground">{children}</strong>
-  ),
+  h1: ({ children }) => <h3 className={heading}>{children}</h3>,
+  h2: ({ children }) => <h3 className={heading}>{children}</h3>,
+  h3: ({ children }) => <h3 className={heading}>{children}</h3>,
+  h4: ({ children }) => <h4 className={heading}>{children}</h4>,
+  p: ({ children }) => <p className={`${block} text-pretty [li>&]:mt-0`}>{children}</p>,
+  ul: ({ children }) => <ul className={`${list} list-disc`}>{children}</ul>,
+  ol: ({ children }) => <ol className={`${list} list-decimal`}>{children}</ol>,
+  li: ({ children }) => <li className="text-pretty">{children}</li>,
+  strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
   em: ({ children }) => <em className="italic">{children}</em>,
   a: ({ children, href }) => (
-    <a
-      href={href}
-      target="_blank"
-      rel="noreferrer"
-      className="underline underline-offset-2"
-    >
+    <a href={href} target="_blank" rel="noreferrer" className="underline underline-offset-2">
       {children}
     </a>
   ),
@@ -55,32 +32,18 @@ const markdownComponents: Components = {
     className ? (
       <code className={className}>{children}</code>
     ) : (
-      <code className="rounded bg-background px-1 py-0.5 font-mono text-[0.85em]">
-        {children}
-      </code>
+      <code className="rounded bg-background px-1 py-0.5 font-mono text-[0.85em]">{children}</code>
     ),
-  pre: ({ children }) => (
-    <pre className="mt-2 overflow-x-auto rounded-md bg-background p-2 font-mono first:mt-0">
-      {children}
-    </pre>
-  ),
-  blockquote: ({ children }) => (
-    <blockquote className="mt-2 border-l-2 pl-3 text-muted-foreground first:mt-0">
-      {children}
-    </blockquote>
-  ),
-  hr: () => <hr className="my-3 border-border" />,
+  pre: ({ children }) => <pre className={`${block} overflow-x-auto rounded-md bg-background p-3 font-mono text-xs`}>{children}</pre>,
+  blockquote: ({ children }) => <blockquote className={`${block} border-l-2 pl-3 text-muted-foreground`}>{children}</blockquote>,
+  hr: () => <hr className={`${block} border-border`} />,
   table: ({ children }) => (
-    <div className="mt-2 overflow-x-auto first:mt-0">
+    <div className={`${block} overflow-x-auto`}>
       <table className="w-full border-collapse">{children}</table>
     </div>
   ),
-  th: ({ children }) => (
-    <th className="border-b px-2 py-1 text-left font-semibold">{children}</th>
-  ),
-  td: ({ children }) => (
-    <td className="border-b px-2 py-1 align-top">{children}</td>
-  ),
+  th: ({ children }) => <th className="border-b px-2 py-1 text-left font-semibold">{children}</th>,
+  td: ({ children }) => <td className="border-b px-2 py-1 align-top">{children}</td>,
 }
 
 export function CopyButton({ text, label }: { text: string; label: string }) {
@@ -101,42 +64,25 @@ export function CopyButton({ text, label }: { text: string; label: string }) {
         )
       }
     >
-      {copied ? (
-        <CheckIcon data-icon="inline-start" />
-      ) : (
-        <CopyIcon data-icon="inline-start" />
-      )}
+      {copied ? <CheckIcon data-icon="inline-start" /> : <CopyIcon data-icon="inline-start" />}
       {copied ? "Copied" : label}
     </Button>
   )
 }
 
-export function Findings({
-  title,
-  text,
-  copyText,
-  format,
-}: {
-  title: string
-  text: string
-  copyText: string
-  format: "markdown" | "log"
-}) {
+export function Findings({ text, copyText, format }: { text: string; copyText: string; format: "markdown" | "log" }) {
   return (
     <section className="flex flex-col gap-1.5">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-medium text-muted-foreground">
-          {title}
-        </span>
-        <CopyButton text={copyText} label="Copy" />
+      <div className="flex justify-end">
+        <CopyButton text={copyText} label="Copy feedback" />
       </div>
-      <div className="max-h-80 overflow-y-auto rounded-md bg-muted p-3 text-xs">
+      <div className="max-h-[30rem] overflow-y-auto rounded-lg bg-muted p-4 text-sm leading-[1.75] [scrollbar-color:color-mix(in_oklch,var(--muted-foreground)_50%,transparent)_transparent] [scrollbar-width:thin]">
         {format === "markdown" ? (
           <Markdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
             {text}
           </Markdown>
         ) : (
-          <pre className="font-mono whitespace-pre-wrap">{text}</pre>
+          <pre className="font-mono text-xs whitespace-pre-wrap">{text}</pre>
         )}
       </div>
     </section>
