@@ -25,6 +25,7 @@ export type ShipJob = {
   log: { at: number; text: string }[]
   version?: number
   findings?: string
+  blockedBy?: "build" | "review"
   error?: string
   note?: string
   url?: string
@@ -287,7 +288,7 @@ async function ship(job: ShipJob, options: ShipOptions) {
   if (latest) {
     step(job, `Checking for changes since v${latest}`)
     const problem = await build(dir, id, repo!, latest)
-    if (problem) return finish(job, "blocked", { step: "The build found problems", findings: problem })
+    if (problem) return finish(job, "blocked", { step: "The build found problems", findings: problem, blockedBy: "build" })
     await git(dir, ["add", "--all"])
     if ((await gitOk(dir, ["diff", "--cached", "--quiet"])).ok)
       return finish(job, "nothing", { version: latest, note: `v${latest} already has exactly this.`, url: `https://github.com/${repo}` })
@@ -295,7 +296,7 @@ async function ship(job: ShipJob, options: ShipOptions) {
   const version = latest + 1
   step(job, `Building v${version}`)
   const problem = await build(dir, id, repo!, version)
-  if (problem) return finish(job, "blocked", { step: "The build found problems", findings: problem })
+  if (problem) return finish(job, "blocked", { step: "The build found problems", findings: problem, blockedBy: "build" })
   await git(dir, ["add", "--all"])
 
   if (options.review) {
@@ -303,7 +304,7 @@ async function ship(job: ShipJob, options: ShipOptions) {
     const verdict = await review(job, await git(dir, ["diff", "--cached", "--no-color"]))
     if (verdict.block) {
       await git(dir, ["reset", "--quiet"])
-      return finish(job, "blocked", { step: "The review found something to fix", findings: verdict.text })
+      return finish(job, "blocked", { step: "The review asked for changes", findings: verdict.text, blockedBy: "review" })
     }
     job.findings = verdict.text
   }
@@ -342,12 +343,15 @@ async function ship(job: ShipJob, options: ShipOptions) {
   })
 }
 
+const stockShadcnPackages = ["cn", "@base-ui/react", "@shadcn/react", "class-variance-authority", "lucide-react", "tw-animate-css", "shadcn"]
+
 async function review(job: ShipJob, diff: string): Promise<{ block: boolean; text: string }> {
   const instructions = [
     `You review a design-system registry about to be published as "${job.systemName}". Consumers install these shadcn registry items with the shadcn CLI, so their code and CSS run in other people's apps.`,
     "The user message is a diff of the repo against its last published version (or every file, if this is the first).",
     "Look for: code that does anything beyond UI (network calls, storage, eval, reading env or cookies), new or unexpected npm dependencies, CSS that could break out of its rule, accessibility or contrast regressions, and obvious mistakes.",
-    "Reply with a first line that is exactly VERDICT: PASS or VERDICT: BLOCK (BLOCK only for something that must be fixed before publishing), then the findings as short bullet points.",
+    `These npm packages are stock shadcn and expected, so never flag them as unexpected: ${stockShadcnPackages.map((name) => `\`${name}\``).join(", ")}. \`cn\` is shadcn's own class-name helper (github.com/shadcn-ui/cn), and \`import { cn } from "cn"\` is the current stock import, not a typo for \`@/lib/utils\`.`,
+    "Reply with a first line that is exactly VERDICT: PASS or VERDICT: BLOCK (BLOCK only for something that must be fixed before publishing), then the findings as short Markdown bullet points, grouped under bold labels by how urgent they are.",
   ].join("\n")
   const args = [
     "-p",

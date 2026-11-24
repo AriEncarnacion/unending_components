@@ -566,7 +566,7 @@ export function SystemMenu() {
       <SaveDialog key={saveOpen} open={saveOpen > 0} onOpenChange={(open) => !open && setSaveOpen(0)} />
       {ds.active ? (
         <Dialog open={shipOpen} onOpenChange={setShipOpen}>
-          <DialogContent className="sm:max-w-md">
+          <DialogContent className="sm:max-w-lg">
             <DialogHeader>
               <DialogTitle>Ship {ds.active.system.name}</DialogTitle>
             </DialogHeader>

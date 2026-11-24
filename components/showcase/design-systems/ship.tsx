@@ -15,6 +15,7 @@ import { Switch } from "@/components/ui/switch"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import type { NewRepo, Preflight, ShipJob, ShipOptions, SystemStatus } from "@/lib/ship/server"
 
+import { Findings } from "./findings"
 import { useDesignSystems } from "./provider"
 
 type ShipState = { ready?: Preflight; status: Record<string, SystemStatus>; jobs: Record<string, ShipJob> }
@@ -106,45 +107,87 @@ export function useShip() {
   return context
 }
 
+const blockedByReview = (job?: ShipJob) =>
+  job?.state === "blocked" && (job.blockedBy === "review" || (!job.blockedBy && job.step.startsWith("The review")))
+
+const needsRetry = (job?: ShipJob) => job?.action === "ship" && (job.state === "blocked" || job.state === "failed")
+
+function headline(job: ShipJob) {
+  if (job.state === "failed") return "That didn't work"
+  if (job.state === "nothing") return "Nothing to ship"
+  if (blockedByReview(job)) return "Not shipped: the review asked for changes"
+  if (job.state === "blocked") return `Not shipped: ${job.step.charAt(0).toLowerCase()}${job.step.slice(1)}`
+  return job.step
+}
+
 export function ShipProgress({ job, onRetry }: { job: ShipJob; onRetry?: (options?: ShipOptions) => void }) {
+  const reviewed = blockedByReview(job)
   return (
     <div className="flex flex-col gap-3 text-sm">
-      <div className="flex items-center gap-2 font-medium">
-        {busy(job) ? (
-          <Spinner />
-        ) : job.state === "shipped" ? (
-          <CheckIcon className="size-4 text-success" />
-        ) : job.state === "nothing" ? (
-          <CircleIcon className="size-4 text-muted-foreground" />
-        ) : (
-          <TriangleAlertIcon className="size-4 text-destructive" />
-        )}
-        <span>{job.state === "failed" ? "That didn't work" : job.state === "nothing" ? "Nothing to ship" : job.step}</span>
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center gap-2 font-medium">
+          {busy(job) ? (
+            <Spinner />
+          ) : job.state === "shipped" ? (
+            <CheckIcon className="size-4 text-success" />
+          ) : job.state === "nothing" ? (
+            <CircleIcon className="size-4 text-muted-foreground" />
+          ) : (
+            <TriangleAlertIcon className="size-4 text-destructive" />
+          )}
+          <span>{headline(job)}</span>
+        </div>
+        {job.state === "blocked" ? (
+          <p className="text-xs text-muted-foreground text-pretty">
+            {reviewed
+              ? "Nothing was committed, pushed or created on GitHub. Fix what you agree with and save, then review again, or ship it as it is. The review is advice from Claude and can be wrong."
+              : "Nothing was committed, pushed or created on GitHub. Fix the problems below, then try again."}
+          </p>
+        ) : null}
       </div>
       {job.findings ? (
-        <div className="max-h-48 overflow-y-auto rounded-md bg-muted p-2 text-xs whitespace-pre-wrap">{job.findings}</div>
+        <Findings
+          title={reviewed ? "Claude's review" : job.state === "shipped" ? "Review notes" : "Build output"}
+          text={job.findings}
+          format={job.blockedBy === "build" || (job.state === "blocked" && !reviewed) ? "log" : "markdown"}
+          copyText={
+            reviewed
+              ? `Claude reviewed the ${job.systemName} design system before shipping it and asked for these changes:\n\n${job.findings}`
+              : job.findings
+          }
+        />
       ) : null}
       {job.error ? <p className="text-xs whitespace-pre-wrap text-destructive">{job.error}</p> : null}
       {job.note ? <p className="text-xs whitespace-pre-wrap text-muted-foreground text-pretty">{job.note}</p> : null}
-      {!busy(job) && job.log.length ? (
-        <ol className="flex flex-col gap-0.5 border-t pt-2 text-xs text-muted-foreground">
-          {job.log.map((entry) => (
-            <li key={entry.at}>{entry.text}</li>
-          ))}
-        </ol>
-      ) : null}
-      {onRetry && job.action === "ship" && (job.state === "blocked" || job.state === "failed") ? (
-        <div className="flex gap-2">
-          <Button size="sm" onClick={() => onRetry()}>
-            <RocketIcon data-icon="inline-start" />
-            Ship again
-          </Button>
-          {job.step.startsWith("The review") ? (
-            <Button size="sm" variant="outline" onClick={() => onRetry({ review: false })}>
-              Ship without the review
+      {onRetry && needsRetry(job) ? (
+        <div className="flex flex-col gap-2">
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" onClick={() => onRetry(reviewed ? { review: true } : undefined)}>
+              <RocketIcon data-icon="inline-start" />
+              {reviewed ? "Review again" : "Try again"}
             </Button>
+            {reviewed ? (
+              <Button size="sm" variant="outline" onClick={() => onRetry({ review: false })}>
+                Ship without the review
+              </Button>
+            ) : null}
+          </div>
+          {reviewed ? (
+            <p className="text-xs text-muted-foreground text-pretty">
+              Review again rebuilds what&apos;s saved and asks Claude again. Ship without the review publishes it as it is now, findings and all.
+            </p>
           ) : null}
         </div>
+      ) : null}
+      {!busy(job) && job.log.length ? (
+        <details className="border-t pt-2 text-xs text-muted-foreground">
+          <summary className="cursor-pointer select-none">Steps</summary>
+          <ol className="mt-1.5 flex flex-col gap-0.5">
+            {job.log.map((entry) => (
+              <li key={entry.at}>{entry.text}</li>
+            ))}
+          </ol>
+        </details>
       ) : null}
     </div>
   )
@@ -282,16 +325,20 @@ export function ShipPanel() {
           {!busy(job) ? (
             <div className="flex flex-col gap-3 border-t pt-3">
               {firstShip ? <NewRepoFields id={id} owners={owners} value={target} onChange={setCreate} /> : null}
-              <div className="flex items-center justify-between gap-2">
-                <Label htmlFor="ship-review" className="text-xs">
-                  Review first with Claude
-                </Label>
-                <Switch id="ship-review" checked={review} onCheckedChange={setReview} disabled={!ready.claude} />
-              </div>
-              <Button size="sm" disabled={firstShip && (!target.owner || !target.name)} onClick={() => void go()}>
-                <RocketIcon data-icon="inline-start" />
-                {firstShip ? "Create the repo and ship v1" : `Ship ${active.system.name}`}
-              </Button>
+              {!blockedByReview(job) ? (
+                <div className="flex items-center justify-between gap-2">
+                  <Label htmlFor="ship-review" className="text-xs">
+                    Review first with Claude
+                  </Label>
+                  <Switch id="ship-review" checked={review} onCheckedChange={setReview} disabled={!ready.claude} />
+                </div>
+              ) : null}
+              {!needsRetry(job) ? (
+                <Button size="sm" disabled={firstShip && (!target.owner || !target.name)} onClick={() => void go()}>
+                  <RocketIcon data-icon="inline-start" />
+                  {firstShip ? "Create the repo and ship v1" : `Ship ${active.system.name}`}
+                </Button>
+              ) : null}
               {versions.length ? (
                 <div className="flex flex-col gap-1.5 border-t pt-3">
                   <span className="text-xs text-muted-foreground text-pretty">
