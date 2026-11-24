@@ -93,7 +93,7 @@ export function SystemPage({ entry = null }: { entry?: string | null }) {
 
       <ComposedSection />
       <OverlaysAndFeedback />
-      <ColorSection selected={token} onSelect={select} />
+      <ColorSection scheme={scheme} selected={token} onSelect={select} />
       <TypeSection />
       <SpacingSection />
       <RadiusSection />
