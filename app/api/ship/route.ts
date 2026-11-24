@@ -52,7 +52,7 @@ export async function POST(request: Request) {
         (create.visibility !== "private" && create.visibility !== "public"))
     )
       return json({ error: "Choose an owner, a repo name and a visibility." }, 400)
-    return json({ job: startShip(body.systemId, name, { create, review: body.review === true }) })
+    return json({ job: startShip(body.systemId, name, { create, review: body.review === true, origin: new URL(request.url).origin }) })
   } catch (error) {
     return json({ error: (error as Error).message }, 409)
   }

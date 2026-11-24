@@ -8,6 +8,7 @@ import { fontById, fontItem, fontRoles, stockFonts } from "../lib/design-systems
 import { paletteVars, scopedSelectors, scopedVars, toVar } from "../lib/design-systems/resolve.ts"
 import { typeVars } from "../lib/design-systems/type-scale.ts"
 import { parsePaletteRef, validate, type Knob, type SystemFile, type Working } from "../lib/design-systems/schema.ts"
+import { previewFiles } from "../lib/ship/preview.ts"
 
 const root = process.cwd()
 const argument = (flag: string) => {
@@ -308,6 +309,11 @@ function readme(working: Working, repo: string, n: string, items: Item[]) {
     `# ${working.system.name}`,
     "",
     `A design system from the [Unending catalog](https://github.com/${ADDRESS}), built as a [shadcn registry](https://ui.shadcn.com/docs/registry/github). Version ${n}.`,
+    "",
+    "<picture>",
+    `  <source media="(prefers-color-scheme: dark)" srcset="${previewFiles.dark}">`,
+    `  <img alt="${working.system.name} v${n}, shown in a sample screen" src="${previewFiles.light}">`,
+    "</picture>",
     "",
     "## Install",
     "",
